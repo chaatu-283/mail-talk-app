@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja" data-theme="simple">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f9fc">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://gmail.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="app.css">
+  <title>メールトーク v0.18｜Gmail実接続テスト</title>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark">✉</div><div><h1>メールトーク</h1><p id="statusText">Gmail 未接続</p></div></div>
+      <button id="syncBtn" class="icon-btn" title="同期" aria-label="同期">↻</button>
+    </header>
+
+    <div class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="相手・件名・本文を検索"><button id="clearSearch" class="clear-btn" aria-label="検索を消す">×</button></div>
+    <div id="filters" class="chip-row"></div>
+    <div id="talkList" class="talk-list"></div>
+
+    <nav class="bottom-nav">
+      <button data-tab="talks" class="active"><span>💬</span><small>トーク</small></button>
+      <button data-tab="files"><span>📎</span><small>添付</small></button>
+      <button data-tab="work"><span>✓</span><small>対応</small></button>
+      <button data-tab="settings"><span>⚙</span><small>設定</small></button>
+    </nav>
+  </aside>
+
+  <main id="mainPane" class="main-pane">
+    <section class="empty-state">
+      <div class="empty-icon">✉</div>
+      <h2>Gmailを、相手ごとの会話に。</h2>
+      <p>設定からGoogle OAuth Client IDを登録し、Gmailを接続すると最近のメールを読み込みます。</p>
+      <button class="primary" data-go-settings>設定を開く</button>
+    </section>
+  </main>
+</div>
+
+<dialog id="modal"><div class="modal-head"><h2 id="modalTitle"></h2><button id="modalClose" class="icon-btn">×</button></div><div id="modalBody" class="modal-body"></div></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
