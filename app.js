@@ -40,7 +40,7 @@ function renderMailText(text,compactMode=false){
   const compact=s=>String(s||'').replace(/[ \t]+\n/g,'\n').replace(/\n{2,}/g,'\n').trim();
   let main=compact(cut>0?lines.slice(0,cut).join('\n'):raw);if(compactMode)main=main.split('\n').map(s=>s.trim()).filter(Boolean).join('\n');
   const quoted=cut>0?lines.slice(cut).join('\n').replace(/\n{3,}/g,'\n\n').trim():'';
-  let html='<div class="mailtext">'+esc(main).replace(/\n/g,'<br>')+'</div>';
+  let html=compactMode?'<div class="mailtext order-list">'+main.split('\n').map(line=>'<div>'+esc(line)+'</div>').join('')+'</div>':'<div class="mailtext">'+esc(main).replace(/\n/g,'<br>')+'</div>';
   if(quoted)html+='<details class="quoted"><summary>過去の引用を表示</summary><div>'+esc(quoted).replace(/\n/g,'<br>')+'</div></details>';
   return html;
 }
