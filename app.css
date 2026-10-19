@@ -23,15 +23,15 @@ button,input,textarea{font:inherit}button{cursor:pointer}.app{height:100dvh;disp
 .att-label{min-width:0;display:flex;flex-direction:column;gap:2px}.att-label strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.att-label small{font-size:10px;color:var(--muted)}
 .att-thumb{width:70px;height:54px;border-radius:9px;background:#e8edf4;display:grid;place-items:center;overflow:hidden;flex:none}
 .att-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.attachment-viewer{position:fixed;inset:0;z-index:1000;background:#101216;display:flex;flex-direction:column;color:#fff}
+.attachment-viewer{position:fixed;inset:0;z-index:1000;background:#101216;display:flex;flex-direction:column;color:#fff;overflow:hidden}
 .attachment-head{height:62px;display:flex;align-items:center;gap:10px;padding:8px 12px;background:#1d2026;border-bottom:1px solid #343840;flex:none}
 .attachment-head>div{min-width:0;display:flex;flex-direction:column}.attachment-head strong,.attachment-head small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.attachment-head small{font-size:11px;color:#b8c0cc;margin-top:2px}
 .attachment-back{width:44px;height:44px;border:0;border-radius:12px;background:#2a2e36;color:#fff;font-size:30px}
 .attachment-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:10px}
 .attachment-image{max-width:100%;max-height:100%;object-fit:contain}
 .pdf-stage{padding:0;position:relative;display:flex;flex-direction:column;background:#dfe3e8}
-.pdf-canvas-stage{flex:1;min-height:0;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px}
-#pdfCanvas{display:block;background:#fff;box-shadow:0 2px 14px #0003}
+.pdf-canvas-stage{flex:1;min-height:0;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px;touch-action:none;overscroll-behavior:contain;user-select:none;-webkit-user-select:none}
+#pdfCanvas{display:block;background:#fff;box-shadow:0 2px 14px #0003;pointer-events:none}
 .pdf-tools{height:54px;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px;background:#20242b;border-top:1px solid #343840;flex:none}
 .pdf-tools button{border:0;border-radius:9px;background:#343a45;color:#fff;min-width:42px;height:38px;padding:0 10px;font-weight:700}
 .pdf-tools button:disabled{opacity:.35}.pdf-tools span{font-size:12px;min-width:58px;text-align:center}
