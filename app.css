@@ -29,8 +29,8 @@ button,input,textarea{font:inherit}button{cursor:pointer}.app{height:100dvh;disp
 .attachment-back{width:44px;height:44px;border:0;border-radius:12px;background:#2a2e36;color:#fff;font-size:30px}
 .attachment-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:10px}
 .attachment-image{max-width:100%;max-height:100%;object-fit:contain}
-.pdf-stage{padding:0;position:relative;display:flex;flex-direction:column;background:#dfe3e8}
-.pdf-canvas-stage{flex:1;min-height:0;overflow:auto;display:block;padding:12px;touch-action:none;overscroll-behavior:contain;user-select:none;-webkit-user-select:none;-webkit-overflow-scrolling:touch;position:relative}
+.pdf-stage{padding:0;position:relative;display:flex;flex-direction:column;background:#dfe3e8;overflow:hidden;align-items:stretch;justify-content:flex-start;width:100%;min-width:0}
+.pdf-canvas-stage{flex:1 1 0;min-height:0;min-width:0;width:100%;max-width:100%;overflow:auto;display:block;padding:12px;touch-action:none;overscroll-behavior:contain;user-select:none;-webkit-user-select:none;-webkit-overflow-scrolling:touch;position:relative}
 #pdfCanvas{display:block;background:#fff;box-shadow:0 2px 14px #0003;pointer-events:none;margin:0 auto}
 .pdf-tools{height:54px;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px;background:#20242b;border-top:1px solid #343840;flex:none}
 .pdf-tools button{border:0;border-radius:9px;background:#343a45;color:#fff;min-width:42px;height:38px;padding:0 10px;font-weight:700}
