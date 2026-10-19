@@ -1,5 +1,5 @@
 
-const BUILD='v0.22-20261019';
+const BUILD='v0.23-20261019';
 const API='https://gmail.googleapis.com/gmail/v1/users/me';
 const READ='https://www.googleapis.com/auth/gmail.readonly';
 const SEND='https://www.googleapis.com/auth/gmail.send';
@@ -111,7 +111,7 @@ async function loadPdfJs(){
   }
   return pdfjsLibPromise;
 }
-async function renderPdfPage(){
+async function renderPdfPage(focus=null){
   const viewer=$('.attachment-viewer');
   const stage=viewer?.querySelector('.pdf-canvas-stage');
   const canvas=viewer?.querySelector('#pdfCanvas');
@@ -122,6 +122,8 @@ async function renderPdfPage(){
   const usable=Math.max(260,stage.clientWidth-24);
   const fit=usable/base.width;
   const scale=Math.max(.35,Math.min(4,fit*st.zoom));
+  const prevScale=st.renderScale||scale;
+  const focusDoc=focus?{x:stage.scrollLeft+focus.x,y:stage.scrollTop+focus.y}:null;
   const vp=page.getViewport({scale});
   const dpr=Math.min(window.devicePixelRatio||1,2);
   canvas.width=Math.floor(vp.width*dpr);
@@ -133,11 +135,85 @@ async function renderPdfPage(){
   if(st.task){try{st.task.cancel()}catch(_){}}
   st.task=page.render({canvasContext:ctx,viewport:vp});
   try{await st.task.promise}catch(e){if(e?.name!=='RenderingCancelledException')throw e}
+  st.renderScale=scale;
+  if(focusDoc&&prevScale>0){
+    const ratio=scale/prevScale;
+    stage.scrollLeft=Math.max(0,focusDoc.x*ratio-focus.x);
+    stage.scrollTop=Math.max(0,focusDoc.y*ratio-focus.y);
+  }
   const lab=viewer.querySelector('#pdfPageLabel');
   if(lab)lab.textContent=st.page+' / '+st.doc.numPages;
   const prev=viewer.querySelector('[data-pdf-prev]'),next=viewer.querySelector('[data-pdf-next]');
   if(prev)prev.disabled=st.page<=1;
   if(next)next.disabled=st.page>=st.doc.numPages;
+}
+function setupPdfGestures(){
+  const stage=$('.pdf-canvas-stage'),st=attachmentView?.pdf;
+  if(!stage||!st||stage.dataset.gestures==='1')return;
+  stage.dataset.gestures='1';
+  const pts=new Map();
+  let pan=null,pinch=null,lastTap=0,moved=false,renderTimer=null;
+  const pos=e=>({x:e.clientX,y:e.clientY});
+  const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const midpoint=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  const focusFromClient=p=>{const r=stage.getBoundingClientRect();return {x:p.x-r.left,y:p.y-r.top}};
+  const schedule=(focus)=>{
+    clearTimeout(renderTimer);
+    renderTimer=setTimeout(()=>renderPdfPage(focus),55);
+  };
+  stage.addEventListener('pointerdown',e=>{
+    if(e.pointerType!=='touch')return;
+    try{stage.setPointerCapture(e.pointerId)}catch(_){}
+    pts.set(e.pointerId,pos(e));moved=false;
+    if(pts.size===1){
+      pan={id:e.pointerId,start:pos(e),scrollLeft:stage.scrollLeft,scrollTop:stage.scrollTop};
+      pinch=null;
+    }else if(pts.size===2){
+      const [a,b]=[...pts.values()];
+      pinch={startDist:Math.max(1,distance(a,b)),startZoom:st.zoom,center:midpoint(a,b)};
+      pan=null;
+    }
+    e.preventDefault();
+  },{passive:false});
+  stage.addEventListener('pointermove',e=>{
+    if(e.pointerType!=='touch'||!pts.has(e.pointerId))return;
+    pts.set(e.pointerId,pos(e));
+    if(pts.size===1&&pan&&pan.id===e.pointerId){
+      const p=pos(e),dx=p.x-pan.start.x,dy=p.y-pan.start.y;
+      if(Math.abs(dx)>3||Math.abs(dy)>3)moved=true;
+      stage.scrollLeft=pan.scrollLeft-dx;
+      stage.scrollTop=pan.scrollTop-dy;
+    }else if(pts.size===2){
+      const [a,b]=[...pts.values()],d=distance(a,b),mid=midpoint(a,b);
+      if(Math.abs(d-pinch.startDist)>4)moved=true;
+      st.zoom=Math.max(.5,Math.min(4,pinch.startZoom*(d/pinch.startDist)));
+      schedule(focusFromClient(mid));
+    }
+    e.preventDefault();
+  },{passive:false});
+  const end=e=>{
+    if(e.pointerType!=='touch')return;
+    const p=pos(e),wasSingle=pts.size===1;
+    pts.delete(e.pointerId);
+    if(pts.size===1){
+      const [id,q]=[...pts.entries()][0];
+      pan={id,start:q,scrollLeft:stage.scrollLeft,scrollTop:stage.scrollTop};
+      pinch=null;
+    }else if(!pts.size){
+      pan=null;pinch=null;
+      if(wasSingle&&!moved){
+        const now=Date.now();
+        if(now-lastTap<320){
+          st.zoom=st.zoom>1.25?1:2.2;
+          renderPdfPage(focusFromClient(p));
+          lastTap=0;
+        }else lastTap=now;
+      }
+    }
+    e.preventDefault();
+  };
+  stage.addEventListener('pointerup',end,{passive:false});
+  stage.addEventListener('pointercancel',end,{passive:false});
 }
 async function initPdfViewer(info){
   try{
@@ -145,8 +221,9 @@ async function initPdfViewer(info){
     const data=new Uint8Array(await info.blob.arrayBuffer());
     const doc=await lib.getDocument({data}).promise;
     if(!attachmentView||attachmentView.url!==info.url)return;
-    attachmentView.pdf={doc,page:1,zoom:1,task:null,resizeTimer:null};
+    attachmentView.pdf={doc,page:1,zoom:1,renderScale:null,task:null,resizeTimer:null};
     await renderPdfPage();
+    setupPdfGestures();
   }catch(e){
     const stage=$('.pdf-canvas-stage');
     if(stage)stage.innerHTML='<div class="pdf-fallback"><strong>PDFをアプリ内で表示できませんでした。</strong><small>'+esc(e?.message||'')+'</small><p>下の「端末で開く」なら確認できます。</p></div>';
