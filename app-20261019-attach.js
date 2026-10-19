@@ -1,5 +1,5 @@
 
-const BUILD='v0.21-20261019';
+const BUILD='v0.22-20261019';
 const API='https://gmail.googleapis.com/gmail/v1/users/me';
 const READ='https://www.googleapis.com/auth/gmail.readonly';
 const SEND='https://www.googleapis.com/auth/gmail.send';
@@ -101,14 +101,66 @@ function closeAttachmentViewer(viaHistory=true){
   const v=$('.attachment-viewer');if(v)v.remove();attachmentView=null;
   if(viaHistory&&history.state?.mt==='attachment')history.back();
 }
+let pdfjsLibPromise=null;
+async function loadPdfJs(){
+  if(!pdfjsLibPromise){
+    pdfjsLibPromise=import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.min.mjs').then(lib=>{
+      lib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.mjs';
+      return lib;
+    });
+  }
+  return pdfjsLibPromise;
+}
+async function renderPdfPage(){
+  const viewer=$('.attachment-viewer');
+  const stage=viewer?.querySelector('.pdf-canvas-stage');
+  const canvas=viewer?.querySelector('#pdfCanvas');
+  const st=attachmentView?.pdf;
+  if(!viewer||!stage||!canvas||!st?.doc)return;
+  const page=await st.doc.getPage(st.page);
+  const base=page.getViewport({scale:1});
+  const usable=Math.max(260,stage.clientWidth-24);
+  const fit=usable/base.width;
+  const scale=Math.max(.35,Math.min(4,fit*st.zoom));
+  const vp=page.getViewport({scale});
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  canvas.width=Math.floor(vp.width*dpr);
+  canvas.height=Math.floor(vp.height*dpr);
+  canvas.style.width=vp.width+'px';
+  canvas.style.height=vp.height+'px';
+  const ctx=canvas.getContext('2d',{alpha:false});
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(st.task){try{st.task.cancel()}catch(_){}}
+  st.task=page.render({canvasContext:ctx,viewport:vp});
+  try{await st.task.promise}catch(e){if(e?.name!=='RenderingCancelledException')throw e}
+  const lab=viewer.querySelector('#pdfPageLabel');
+  if(lab)lab.textContent=st.page+' / '+st.doc.numPages;
+  const prev=viewer.querySelector('[data-pdf-prev]'),next=viewer.querySelector('[data-pdf-next]');
+  if(prev)prev.disabled=st.page<=1;
+  if(next)next.disabled=st.page>=st.doc.numPages;
+}
+async function initPdfViewer(info){
+  try{
+    const lib=await loadPdfJs();
+    const data=new Uint8Array(await info.blob.arrayBuffer());
+    const doc=await lib.getDocument({data}).promise;
+    if(!attachmentView||attachmentView.url!==info.url)return;
+    attachmentView.pdf={doc,page:1,zoom:1,task:null,resizeTimer:null};
+    await renderPdfPage();
+  }catch(e){
+    const stage=$('.pdf-canvas-stage');
+    if(stage)stage.innerHTML='<div class="pdf-fallback"><strong>PDFをアプリ内で表示できませんでした。</strong><small>'+esc(e?.message||'')+'</small><p>下の「端末で開く」なら確認できます。</p></div>';
+  }
+}
 function showAttachmentViewer(info){
   closeAttachmentViewer(false);
   if(history.state?.mt!=='attachment')history.pushState({mt:'attachment'},'',location.href);
   attachmentView=info;
   const v=document.createElement('div');v.className='attachment-viewer';
-  const media=/^image\//i.test(info.type)?'<div class="attachment-stage"><img class="attachment-image" src="'+info.url+'" alt="'+esc(info.name)+'"></div>':isPdfFile(info)?'<div class="attachment-stage pdf-stage"><iframe class="attachment-pdf" src="'+info.url+'" title="'+esc(info.name)+'"></iframe><p class="pdf-help">PDFが表示されない場合は「端末で開く」を押してください。</p></div>':'<div class="attachment-stage attachment-generic"><div class="generic-icon">📎</div><strong>'+esc(info.name)+'</strong><p>この形式はブラウザ内で表示できない場合があります。保存するか、端末の対応アプリで開いてください。</p></div>';
+  const media=/^image\//i.test(info.type)?'<div class="attachment-stage"><img class="attachment-image" src="'+info.url+'" alt="'+esc(info.name)+'"></div>':isPdfFile(info)?'<div class="attachment-stage pdf-stage"><div class="pdf-canvas-stage"><canvas id="pdfCanvas"></canvas></div><div class="pdf-tools"><button type="button" data-pdf-prev>‹</button><span id="pdfPageLabel">読込中…</span><button type="button" data-pdf-next>›</button><button type="button" data-pdf-minus>−</button><button type="button" data-pdf-fit>全体</button><button type="button" data-pdf-plus>＋</button></div></div>':'<div class="attachment-stage attachment-generic"><div class="generic-icon">📎</div><strong>'+esc(info.name)+'</strong><p>この形式はブラウザ内で表示できない場合があります。保存するか、端末の対応アプリで開いてください。</p></div>';
   v.innerHTML='<header class="attachment-head"><button type="button" class="attachment-back" data-att-close>‹</button><div><strong>'+esc(info.name)+'</strong><small>'+esc(info.type||'ファイル')+'</small></div></header>'+media+'<footer class="attachment-actions"><button type="button" class="secondary" data-att-download>保存</button><button type="button" class="primary" data-att-external>端末で開く</button></footer>';
   document.body.appendChild(v);
+  if(isPdfFile(info))initPdfViewer(info);
 }
 async function openAttachment(messageId,name){
   try{say('添付を読み込んでいます…');const info=await getAttachmentBlob(messageId,name);showAttachmentViewer(info)}
@@ -191,6 +243,7 @@ function showSettings(){tab='settings';active='';app.classList.add('inmain');$$(
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-att-close')){closeAttachmentViewer();return}if(b.hasAttribute('data-att-download')){if(attachmentView)downloadAttachment(attachmentView);return}if(b.hasAttribute('data-att-external')){if(attachmentView)window.open(attachmentView.url,'_blank','noopener');return}if(b.dataset.attOpen){openAttachment(b.dataset.msgId,b.dataset.attName);return}if(b.dataset.open){if(history.state?.mt!=='chat')history.pushState({mt:'chat'},'',location.href);active=b.dataset.open;replyId='';showChat(active);renderList()}if(b.dataset.filter){filter=b.dataset.filter;render()}if(b.dataset.reply){replyId=b.dataset.reply;showChat(active)}if(b.hasAttribute('data-back')){if(history.state?.mt==='chat')history.back();else{active='';replyId='';showEmpty();renderList()}}if(b.dataset.tab==='talks'){tab='talks';active='';app.classList.remove('inmain');render()}if(b.dataset.tab==='settings')showSettings();if(b.dataset.sync!==undefined)sync();if(b.dataset.save!==undefined){settings.clientId=$('#clientId').value.trim();settings.days=Number($('#days').value);settings.max=Number($('#max').value);localStorage.setItem('mt-client',settings.clientId);localStorage.setItem('mt-days',settings.days);localStorage.setItem('mt-max',settings.max);say('設定を保存しました')}})
 $('#searchInput').addEventListener('input',e=>{query=e.target.value;renderList()});$('#clearSearch').addEventListener('click',()=>{$('#searchInput').value='';query='';renderList()});$('#syncBtn').addEventListener('click',sync);
 window.addEventListener('popstate',e=>{if($('.attachment-viewer')){closeAttachmentViewer(false);return}if(active||app.classList.contains('inmain')){active='';replyId='';tab='talks';showEmpty();renderList();$('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab==='talks'));}});
+window.addEventListener('resize',()=>{if(attachmentView?.pdf){clearTimeout(attachmentView.pdf.resizeTimer);attachmentView.pdf.resizeTimer=setTimeout(renderPdfPage,120)}});
 window.addEventListener('beforeunload',()=>attachmentCache.forEach(x=>{try{URL.revokeObjectURL(x.url)}catch(_){}}));
 restoreCache();
 render();
