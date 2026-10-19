@@ -29,7 +29,13 @@ button,input,textarea{font:inherit}button{cursor:pointer}.app{height:100dvh;disp
 .attachment-back{width:44px;height:44px;border:0;border-radius:12px;background:#2a2e36;color:#fff;font-size:30px}
 .attachment-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:10px}
 .attachment-image{max-width:100%;max-height:100%;object-fit:contain}
-.pdf-stage{padding:0;position:relative}.attachment-pdf{width:100%;height:100%;border:0;background:#fff}.pdf-help{position:absolute;left:12px;right:12px;bottom:10px;margin:0;background:#000b;padding:8px 10px;border-radius:9px;font-size:11px;text-align:center;pointer-events:none}
+.pdf-stage{padding:0;position:relative;display:flex;flex-direction:column;background:#dfe3e8}
+.pdf-canvas-stage{flex:1;min-height:0;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px}
+#pdfCanvas{display:block;background:#fff;box-shadow:0 2px 14px #0003}
+.pdf-tools{height:54px;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px;background:#20242b;border-top:1px solid #343840;flex:none}
+.pdf-tools button{border:0;border-radius:9px;background:#343a45;color:#fff;min-width:42px;height:38px;padding:0 10px;font-weight:700}
+.pdf-tools button:disabled{opacity:.35}.pdf-tools span{font-size:12px;min-width:58px;text-align:center}
+.pdf-fallback{margin:auto;text-align:center;color:#26313f;padding:24px;max-width:360px}.pdf-fallback small{display:block;margin-top:8px;color:#637083;overflow-wrap:anywhere}
 .attachment-generic{flex-direction:column;text-align:center;padding:30px}.generic-icon{font-size:64px}.attachment-generic p{max-width:430px;color:#c8cfd8;line-height:1.6}
 .attachment-actions{display:flex;gap:10px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#1d2026;border-top:1px solid #343840;flex:none}.attachment-actions button{flex:1}
 .subject-input{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:7px}
