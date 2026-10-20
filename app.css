@@ -89,3 +89,15 @@ button,input,textarea{font:inherit}button{cursor:pointer}.app{height:100dvh;disp
   .talk-row .avatar{width:50px;height:50px}
   .list-att{max-width:118px}
 }
+
+/* v0.36 list polish */
+#syncBtn{white-space:nowrap;min-width:88px;line-height:1.15;padding:10px 12px}
+.brand{align-items:flex-start}
+.status{padding-right:6px;line-height:1.35}
+.list-atts{max-width:100%;overflow:hidden}
+.list-more{display:inline-flex;align-items:center;justify-content:center;height:31px;min-width:30px;padding:0 6px;border:1px solid var(--line);border-radius:10px;background:#f7f9fc}
+@media(max-width:820px){
+  #syncBtn{min-width:86px;font-size:15px}
+  .top{padding:14px}
+  .list-att{max-width:132px}
+}
