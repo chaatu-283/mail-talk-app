@@ -7,14 +7,14 @@
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com https://cdnjs.cloudflare.com; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://gmail.googleapis.com https://www.googleapis.com https://accounts.google.com https://cdnjs.cloudflare.com; frame-src https://accounts.google.com blob:; worker-src 'self' blob: https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self';">
-  <link rel="stylesheet" href="app.css?v=20261021-v43">
-  <title>メールトーク v0.43｜同頭文字の色分け</title>
+  <link rel="stylesheet" href="app.css?v=20261021-v44">
+  <title>メールトーク v0.44｜フィルタ戻る対応</title>
 </head>
 <body>
 <div class="app">
   <aside class="side">
     <header class="top">
-      <div class="brand"><div><h1>メールトーク</h1><div class="status" id="statusText">Gmail 未接続</div></div><button class="secondary" id="syncBtn">↻ 同期</button></div>
+      <div class="brand"><div class="brand-left"><button type="button" class="list-back" id="listBackBtn" data-list-back hidden aria-label="一覧に戻る">‹</button><div><h1>メールトーク</h1><div class="status" id="statusText">Gmail 未接続</div></div></div><button class="secondary" id="syncBtn">↻ 同期</button></div>
       <div class="search"><input id="searchInput" type="search" placeholder="相手・件名・本文を検索"><button class="secondary" id="clearSearch">×</button></div>
     </header>
     <div class="filters" id="filters"></div>
@@ -35,6 +35,6 @@
 <button type="button" class="compose-fab" data-compose-new aria-label="新規メール">✎ <span>作成</span></button>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="app-20261021-v43.js?v=1" defer></script>
+<script src="app-20261021-v44.js?v=1" defer></script>
 </body>
 </html>
