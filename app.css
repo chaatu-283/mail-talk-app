@@ -168,3 +168,21 @@ html[data-theme="dark"] .compose-fab{box-shadow:0 7px 24px #0008}
 /* v0.40 contact-specific avatar colors */
 .avatar{box-shadow:inset 0 0 0 1px #00000010}
 html[data-theme="dark"] .avatar{box-shadow:inset 0 0 0 1px #ffffff18}
+
+/* v0.42 CSP-safe contact avatar palette */
+.avatar-color-0{background:#FFD45C!important;color:#4A3A00!important}
+.avatar-color-1{background:#F28B82!important;color:#5B1510!important}
+.avatar-color-2{background:#81C995!important;color:#123F24!important}
+.avatar-color-3{background:#78D9EC!important;color:#0F4250!important}
+.avatar-color-4{background:#A8C7FA!important;color:#17365D!important}
+.avatar-color-5{background:#CDB7F6!important;color:#3D2866!important}
+.avatar-color-6{background:#F6AEA9!important;color:#5A2320!important}
+.avatar-color-7{background:#A7D7A9!important;color:#264B28!important}
+.avatar-color-8{background:#80CBC4!important;color:#123E3A!important}
+.avatar-color-9{background:#FFB74D!important;color:#5A3400!important}
+.avatar-color-10{background:#B39DDB!important;color:#3E2B62!important}
+.avatar-color-11{background:#90CAF9!important;color:#17466A!important}
+.avatar-color-12{background:#CE93D8!important;color:#54215D!important}
+.avatar-color-13{background:#9FA8DA!important;color:#2B3765!important}
+.avatar-color-14{background:#FFCC80!important;color:#5A3900!important}
+.avatar-color-15{background:#80DEEA!important;color:#14474D!important}
