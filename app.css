@@ -145,3 +145,22 @@ html[data-theme="dark"] .secondary{background:#303640;color:#eef1f5}
 .settings-head h2{margin:0;font-size:20px}
 .settings-head .back{display:block}
 .settings-page{padding-top:14px}
+
+/* v0.39 Gmail-inspired useful controls */
+.talk-item{position:relative}
+.talk-item .talk-row{padding-right:48px}
+.talk-star{position:absolute;right:8px;top:42px;width:36px;height:36px;border:0;background:transparent;color:#8b95a2;font-size:25px;line-height:1;border-radius:50%}
+.talk-star.on{color:#f4b400}
+.talk-star:active{background:#eef2f7}
+.compose-fab{position:fixed;right:18px;bottom:78px;z-index:8;border:0;border-radius:18px;background:var(--accent);color:#fff;padding:14px 18px;font-weight:800;box-shadow:0 6px 20px #0002;display:flex;align-items:center;gap:7px}
+.app.inmain~.compose-fab{display:none}
+.new-compose-page{overflow:auto}
+.new-compose-page .card{max-width:720px;margin:0 auto}
+.new-compose-page textarea{width:100%;resize:vertical;border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--panel);color:var(--text);min-height:140px}
+.compose-send-main{min-width:110px}
+html[data-theme="dark"] .talk-star:active{background:#303640}
+html[data-theme="dark"] .compose-fab{box-shadow:0 7px 24px #0008}
+@media(max-width:820px){
+  .compose-fab{right:16px;bottom:74px;padding:13px 17px}
+  .talk-star{right:5px;top:38px}
+}
