@@ -139,3 +139,9 @@ html[data-theme="dark"] .secondary{background:#303640;color:#eef1f5}
   .cat-keywords{grid-column:1/-1}
   .chat-category{max-width:96px}
 }
+
+/* v0.38 settings navigation */
+.settings-head{height:64px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
+.settings-head h2{margin:0;font-size:20px}
+.settings-head .back{display:block}
+.settings-page{padding-top:14px}
