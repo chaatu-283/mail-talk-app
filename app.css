@@ -186,3 +186,13 @@ html[data-theme="dark"] .avatar{box-shadow:inset 0 0 0 1px #ffffff18}
 .avatar-color-13{background:#9FA8DA!important;color:#2B3765!important}
 .avatar-color-14{background:#FFCC80!important;color:#5A3900!important}
 .avatar-color-15{background:#80DEEA!important;color:#14474D!important}
+
+/* v0.43 extra colors for same-initial contacts */
+.avatar-color-16{background:#F4A6D7!important;color:#5A2145!important}
+.avatar-color-17{background:#B8E986!important;color:#304F12!important}
+.avatar-color-18{background:#7FC8F8!important;color:#154765!important}
+.avatar-color-19{background:#E6B8F4!important;color:#532662!important}
+.avatar-color-20{background:#F7C873!important;color:#574000!important}
+.avatar-color-21{background:#8ED7C6!important;color:#174B3E!important}
+.avatar-color-22{background:#F59E9E!important;color:#5B2020!important}
+.avatar-color-23{background:#AFC5FF!important;color:#243E73!important}
