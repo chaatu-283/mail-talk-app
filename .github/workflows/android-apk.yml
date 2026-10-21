@@ -49,9 +49,9 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/MailTalk-v0.45-beta2-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/MailTalk-v0.45-beta3-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: MailTalk-debug-apk
-          path: dist/MailTalk-v0.45-beta2-debug.apk
+          path: dist/MailTalk-v0.45-beta3-debug.apk
           if-no-files-found: error
