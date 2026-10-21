@@ -2,12 +2,19 @@
 <resources>
     <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:colorAccent">@color/brand_red</item>
         <item name="android:navigationBarColor">@color/navigation_bar_color</item>
         <item name="android:statusBarColor">@color/status_bar_color</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <style name="LauncherActivityTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
     </style>
 </resources>
