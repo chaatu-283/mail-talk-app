@@ -1,0 +1,13 @@
+{
+  "name": "メールトーク",
+  "short_name": "メールトーク",
+  "description": "Gmailを相手ごとのLINE風トークにまとめるメールアプリ",
+  "start_url": "/mail-talk-app/",
+  "scope": "/mail-talk-app/",
+  "display": "standalone",
+  "background_color": "#F7F9FC",
+  "theme_color": "#F21818",
+  "icons": [
+    {"src":"app-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}

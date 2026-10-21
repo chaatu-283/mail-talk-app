@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_red">#F21818</color>
+    <color name="brand_blue">#2B67F6</color>
+    <color name="splash_background">#F7F9FC</color>
+    <color name="status_bar_color">#F7F9FC</color>
+    <color name="status_bar_color_dark">#181B20</color>
+    <color name="navigation_bar_color">#FFFFFF</color>
+    <color name="navigation_bar_color_dark">#111318</color>
+</resources>
