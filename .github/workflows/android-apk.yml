@@ -36,6 +36,14 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: mailtalk-debug-keystore-v1
+
+      - name: Generate stable debug signing key
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v               -keystore "$HOME/.android/debug.keystore"               -storepass android               -alias androiddebugkey               -keypass android               -keyalg RSA               -keysize 2048               -validity 10000               -dname "CN=Android Debug,O=Android,C=US"
+          fi
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
@@ -43,15 +51,21 @@ jobs:
         working-directory: android
         run: gradle :app:assembleDebug --stacktrace
       - name: Signing fingerprint
+        shell: bash
+        env:
+          LANG: C
+          LC_ALL: C
         run: |
-          echo "===== MAIL TALK TWA CERTIFICATE ====="
-          keytool -list -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android | grep "SHA256:" || true
+          echo "===== MAIL TALK ANDROID CERTIFICATE ====="
+          keytool -list -v             -keystore "$HOME/.android/debug.keystore"             -alias androiddebugkey             -storepass android             -keypass android | grep -E "SHA1:|SHA256:" || true
+          echo "PACKAGE: jp.chaatu.mailtalk"
+          echo "========================================="
       - name: Rename APK
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/MailTalk-v0.46-native-beta1-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/MailTalk-v0.46-native-beta2-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: MailTalk-debug-apk
-          path: dist/MailTalk-v0.46-native-beta1-debug.apk
+          path: dist/MailTalk-v0.46-native-beta2-debug.apk
           if-no-files-found: error
