@@ -8,13 +8,22 @@ android {
         applicationId 'jp.chaatu.mailtalk'
         minSdk 26
         targetSdk 36
-        versionCode 7
-        versionName '0.46-native-beta3'
+        versionCode 8
+        versionName '0.46-native-beta4'
+    }
+    signingConfigs {
+        debug {
+            storeFile file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
     }
     buildTypes {
         debug {
             applicationIdSuffix ''
             versionNameSuffix '-debug'
+            signingConfig signingConfigs.debug
         }
         release {
             minifyEnabled false
