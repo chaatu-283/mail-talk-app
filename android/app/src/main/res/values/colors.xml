@@ -7,4 +7,6 @@
     <color name="status_bar_color_dark">#181B20</color>
     <color name="navigation_bar_color">#FFFFFF</color>
     <color name="navigation_bar_color_dark">#111318</color>
+    <color name="icon_pink">#FF6F9F</color>
+    <color name="icon_lilac">#8B7CF6</color>
 </resources>
