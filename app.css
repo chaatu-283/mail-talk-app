@@ -260,3 +260,225 @@ html[data-theme="dark"] .compose textarea{
 @media(max-width:820px){
   .compose-fab{bottom:calc(74px + env(safe-area-inset-bottom,0px))}
 }
+
+
+/* Cute theme v2: softer, rounder mail UI */
+html[data-theme="cute"] body,
+html[data-theme="cute"] .app{
+  background:#fff3f8;
+}
+
+html[data-theme="cute"] .side{
+  background:#fff8fc;
+}
+
+html[data-theme="cute"] .top{
+  background:#fffafd;
+  border-bottom-color:#f4dce9;
+  padding-bottom:12px;
+}
+
+html[data-theme="cute"] .brand h1{
+  letter-spacing:.02em;
+}
+
+html[data-theme="cute"] .search{
+  gap:6px;
+}
+
+html[data-theme="cute"] .search input{
+  background:#fff;
+  border:1px solid #f1d7e5;
+  border-radius:22px;
+  box-shadow:0 3px 10px #e89fbe14;
+}
+
+html[data-theme="cute"] .search .secondary{
+  border-radius:18px;
+}
+
+html[data-theme="cute"] .filters{
+  padding-top:8px;
+  padding-bottom:10px;
+}
+
+html[data-theme="cute"] .chip{
+  background:#fff;
+  border-color:#f0d6e3;
+  border-radius:18px;
+  padding:8px 12px;
+  box-shadow:0 2px 7px #d884aa10;
+}
+
+html[data-theme="cute"] .chip.active{
+  background:#ffe5f1;
+  border-color:#f4aeca;
+  color:#a83a6b;
+  box-shadow:0 3px 10px #e889b522;
+}
+
+html[data-theme="cute"] .list{
+  padding:3px 10px 14px;
+}
+
+html[data-theme="cute"] .talk-row,
+html[data-theme="cute"] .row{
+  background:#fff;
+  border:1px solid #f3dce7;
+  border-radius:22px;
+  margin:7px 0;
+  padding:12px 13px;
+  box-shadow:0 5px 14px #c96f9812;
+}
+
+html[data-theme="cute"] .talk-row:active,
+html[data-theme="cute"] .row:active,
+html[data-theme="cute"] .row.sel{
+  background:#fff0f7;
+  transform:scale(.995);
+}
+
+html[data-theme="cute"] .avatar{
+  border-radius:50%;
+  box-shadow:0 3px 9px #c7709618,inset 0 0 0 2px #ffffffaa;
+}
+
+html[data-theme="cute"] .name{
+  font-weight:800;
+}
+
+html[data-theme="cute"] .subject{
+  color:#4b3843;
+}
+
+html[data-theme="cute"] .preview{
+  color:#927687;
+}
+
+html[data-theme="cute"] .badge{
+  border-radius:999px;
+  padding:3px 7px;
+  box-shadow:0 2px 6px #00000010;
+}
+
+html[data-theme="cute"] .cat-badge,
+html[data-theme="cute"] .list-att,
+html[data-theme="cute"] .list-more{
+  border-radius:999px;
+  background:#fff0f7;
+  border-color:#f1d4e2;
+}
+
+html[data-theme="cute"] .talk-star{
+  border-radius:50%;
+}
+
+html[data-theme="cute"] .nav{
+  background:#fffafd;
+  border-top-color:#f0d6e3;
+  padding:7px 8px calc(7px + env(safe-area-inset-bottom,0px));
+  gap:6px;
+}
+
+html[data-theme="cute"] .nav button{
+  border-radius:18px;
+  padding:11px 8px;
+}
+
+html[data-theme="cute"] .nav button.active{
+  background:#ffe4f1;
+  color:#a83a6b;
+  box-shadow:inset 0 0 0 1px #f4bfd5;
+}
+
+html[data-theme="cute"] .main{
+  background:#fff1f7;
+}
+
+html[data-theme="cute"] .chathead{
+  background:#fffafd;
+  border-bottom-color:#f0d9e5;
+}
+
+html[data-theme="cute"] .back{
+  background:#fff0f7;
+  border-radius:14px;
+  color:#9d4c72;
+}
+
+html[data-theme="cute"] .msgs{
+  background:
+    radial-gradient(circle at 20% 10%,#ffffff80 0 18%,transparent 19%),
+    #fff3f8;
+}
+
+html[data-theme="cute"] .bubble{
+  border-color:#f1dce6;
+  border-radius:22px 22px 22px 8px;
+  box-shadow:0 4px 12px #a8688610;
+  padding:12px 14px;
+}
+
+html[data-theme="cute"] .out .bubble{
+  border-radius:22px 22px 8px 22px;
+  background:#ffdfea;
+  border-color:#f3c7d8;
+}
+
+html[data-theme="cute"] .subj{
+  border-bottom-color:#f0d8e4;
+  font-weight:700;
+}
+
+html[data-theme="cute"] .replypick{
+  background:#fff0f7;
+  color:#98506f;
+  border-radius:999px;
+  padding:5px 9px;
+}
+
+html[data-theme="cute"] .composer{
+  background:#fffafd;
+  border-top-color:#f0d6e3;
+  padding:10px 11px calc(10px + env(safe-area-inset-bottom,0px));
+}
+
+html[data-theme="cute"] .compose textarea,
+html[data-theme="cute"] .subject-input{
+  background:#fff;
+  border-color:#edcfdd;
+  border-radius:20px;
+  box-shadow:inset 0 1px 2px #00000008;
+}
+
+html[data-theme="cute"] .send,
+html[data-theme="cute"] .primary,
+html[data-theme="cute"] .compose-fab{
+  border-radius:20px;
+  box-shadow:0 5px 14px #ca6e9826;
+}
+
+html[data-theme="cute"] .secondary{
+  background:#fff0f7;
+  color:#70485d;
+  border-radius:18px;
+}
+
+html[data-theme="cute"] .card{
+  background:#fff;
+  border-color:#f0d8e4;
+  border-radius:24px;
+  box-shadow:0 5px 15px #c96f9810;
+}
+
+html[data-theme="cute"] .field input,
+html[data-theme="cute"] .field select{
+  background:#fffafd;
+  border-color:#efd4e1;
+  border-radius:16px;
+}
+
+html[data-theme="cute"] .settings-head{
+  background:#fffafd;
+  border-bottom-color:#f0d8e4;
+}
