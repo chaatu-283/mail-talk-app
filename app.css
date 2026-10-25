@@ -245,3 +245,18 @@ html[data-theme="dark"] .compose textarea{
     font-size:26px;
   }
 }
+
+
+/* Android/native safe-area support */
+.nav{
+  padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));
+}
+.compose-fab{
+  bottom:calc(78px + env(safe-area-inset-bottom,0px));
+}
+.composer{
+  padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+}
+@media(max-width:820px){
+  .compose-fab{bottom:calc(74px + env(safe-area-inset-bottom,0px))}
+}
