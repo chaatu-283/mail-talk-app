@@ -561,18 +561,16 @@ async function sync(force=false){
     const prof=await api('/profile');
     self=prof.emailAddress.toLowerCase();
     const q='newer_than:'+Math.max(1,settings.days)+'d';
-    const wanted=Math.max(1,Math.min(1000,Number(settings.max)||100));
     const ids=[];
     let pageToken='';
-    while(ids.length<wanted){
-      const pageSize=Math.min(100,wanted-ids.length);
-      let path='/messages?maxResults='+pageSize+'&q='+encodeURIComponent(q);
-      if(pageToken)path+='&pageToken='+encodeURIComponent(pageToken);
-      const page=await api(path);
-      ids.push(...(page.messages||[]).map(x=>x.id));
-      pageToken=page.nextPageToken||'';
-      status.textContent='メール一覧を読み込み中 '+ids.length+'/'+wanted;
-      if(!pageToken||!(page.messages||[]).length)break;
+    while(ids.length<settings.max){
+      const pageSize=Math.min(500,settings.max-ids.length);
+      const path='/messages?maxResults='+pageSize+'&q='+encodeURIComponent(q)+(pageToken?'&pageToken='+encodeURIComponent(pageToken):'');
+      const l=await api(path);
+      ids.push(...(l.messages||[]).map(x=>x.id));
+      pageToken=l.nextPageToken||'';
+      status.textContent='メール一覧を確認中 '+ids.length+'/'+settings.max;
+      if(!pageToken||(l.messages||[]).length===0)break;
     }
     const existing=new Map(msgs.map(x=>[x.id,x]));
     const kept=ids.filter(id=>existing.has(id)).map(id=>existing.get(id));
@@ -908,7 +906,7 @@ function showSettings(){
   tab='settings';active='';app.classList.add('inmain');$$('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab==='settings'));
   const catRows=categories.map((c,i)=>'<div class="cat-row" data-cat-id="'+esc(c.id)+'"><input class="cat-name" value="'+esc(c.name)+'" aria-label="分類名"><textarea class="cat-keywords" rows="2" placeholder="キーワードをカンマ区切り">'+esc(c.keywords||'')+'</textarea>'+(c.id!=='other'?'<button type="button" class="cat-delete" data-cat-delete="'+esc(c.id)+'">削除</button>':'')+'</div>').join('');
   main.innerHTML='<header class="settings-head"><button type="button" class="back settings-back" data-settings-back>‹</button><h2>設定</h2></header><div class="page settings-page">'+
-  '<section class="card"><h3>Gmail接続</h3><div class="field"><label>OAuth Client ID</label><input id="clientId" value="'+esc(settings.clientId)+'" placeholder="xxxxx.apps.googleusercontent.com"></div><div class="settings-grid"><div class="field"><label>読み込む期間</label><select id="days"><option value="7">7日</option><option value="30">30日</option><option value="90">90日</option><option value="180">180日</option><option value="365">1年</option><option value="730">2年</option><option value="3650">約10年</option></select></div><div class="field"><label>最大メール数</label><select id="max"><option value="50">50</option><option value="100">100</option><option value="200">200</option><option value="500">500</option><option value="1000">1000</option></select></div></div><div class="actions"><button class="primary" data-save-main>保存</button><button class="secondary" data-sync>Gmailを接続・読み込む</button></div></section>'+
+  '<section class="card"><h3>Gmail接続</h3><div class="field"><label>OAuth Client ID</label><input id="clientId" value="'+esc(settings.clientId)+'" placeholder="xxxxx.apps.googleusercontent.com"></div><div class="settings-grid"><div class="field"><label>読み込む期間</label><select id="days"><option value="7">7日</option><option value="30">30日</option><option value="90">90日</option><option value="180">180日</option><option value="365">1年</option><option value="730">2年</option></select></div><div class="field"><label>最大メール数</label><select id="max"><option>50</option><option>80</option><option>100</option><option>200</option><option>500</option><option>1000</option></select></div></div><div class="actions"><button class="primary" data-save-main>保存</button><button class="secondary" data-sync>Gmailを接続・読み込む</button></div></section>'+
   '<section class="card"><h3>自動振り分け</h3><p>同じ相手は1つのトークのまま、件名・本文・添付名から分類します。Gmail本体のラベルは変更しません。</p><div id="categoryRows">'+catRows+'</div><div class="actions"><button class="secondary" data-cat-add>＋分類を追加</button><button class="secondary" data-cat-reset>初期状態に戻す</button><button class="primary" data-cat-save>分類を保存</button></div></section>'+
   '<section class="card"><h3>見た目</h3><div class="settings-grid"><div class="field"><label>テーマ</label><select id="themeSel"><option value="line">LINE風</option><option value="gmail">Gmail風</option><option value="cute">かわいい系</option><option value="dark">ダーク</option></select></div><div class="field"><label>文字サイズ</label><select id="sizeSel"><option value="small">小さめ</option><option value="normal">標準</option><option value="large">大きめ</option></select></div><div class="field"><label>フォント</label><select id="fontSel"><option value="system">標準</option><option value="rounded">丸ゴシック風</option><option value="mincho">明朝</option></select></div><div class="field"><label>アクセント色</label><input id="accentSel" type="color" value="'+esc(appearance.accent||'#1a73e8')+'"></div></div><div class="actions"><button class="primary" data-appearance-save>見た目を保存</button></div></section>'+
   '<section class="card"><h3>接続チェック</h3><div class="'+(location.protocol==='https:'?'ok':'notice')+'">'+(location.protocol==='https:'?'HTTPSで開いています。':'HTTPSで公開してから使ってください。')+'</div><p>この公開テスト版は、Gmailの読み取りと返信送信を使います。削除・アーカイブ・既読変更はしません。</p></section></div>';
