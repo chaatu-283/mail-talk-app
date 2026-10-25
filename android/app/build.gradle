@@ -8,8 +8,8 @@ android {
         applicationId 'jp.chaatu.mailtalk'
         minSdk 26
         targetSdk 36
-        versionCode 8
-        versionName '0.46-native-beta4'
+        versionCode 9
+        versionName '0.46-native-beta5'
     }
     signingConfigs {
         debug {
@@ -36,5 +36,6 @@ android {
     }
 }
 dependencies {
+    implementation 'androidx.core:core:1.15.0'
     implementation 'com.google.android.gms:play-services-auth:21.3.0'
 }
