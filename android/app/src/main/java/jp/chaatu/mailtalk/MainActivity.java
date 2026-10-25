@@ -147,7 +147,7 @@ public class MainActivity extends Activity {
                 .addOnFailureListener(e -> {
                     String id = pendingAuthId;
                     pendingAuthId = null;
-                    rejectAuth(id, "Google認証エラー: " + safeMessage(e));
+                    rejectAuth(id, "Google認証エラー: " + describeError(e));
                 });
     }
 
@@ -201,26 +201,41 @@ public class MainActivity extends Activity {
         return (m == null || m.trim().isEmpty()) ? e.getClass().getSimpleName() : m;
     }
 
+    private String describeError(Exception e) {
+        if (e instanceof ApiException) {
+            ApiException a = (ApiException)e;
+            String msg = a.getStatusMessage();
+            if (msg == null || msg.trim().isEmpty()) msg = safeMessage(a);
+            return "code=" + a.getStatusCode() + " / " + msg;
+        }
+        return e.getClass().getSimpleName() + " / " + safeMessage(e);
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == REQ_AUTH) {
-            if (resultCode != RESULT_OK || data == null) {
-                String id = pendingAuthId;
-                pendingAuthId = null;
-                rejectAuth(id, "Google認証をキャンセルしました");
-                return;
+            String id = pendingAuthId;
+            if (data != null) {
+                try {
+                    AuthorizationResult result =
+                            authorizationClient.getAuthorizationResultFromIntent(data);
+                    deliverToken(result);
+                    return;
+                } catch (ApiException e) {
+                    pendingAuthId = null;
+                    rejectAuth(id,
+                            "Google認証失敗: result=" + resultCode +
+                            " / code=" + e.getStatusCode() +
+                            " / " + (e.getStatusMessage() == null ? safeMessage(e) : e.getStatusMessage()));
+                    return;
+                }
             }
-            try {
-                AuthorizationResult result =
-                        authorizationClient.getAuthorizationResultFromIntent(data);
-                deliverToken(result);
-            } catch (ApiException e) {
-                String id = pendingAuthId;
-                pendingAuthId = null;
-                rejectAuth(id, "Google認証エラー: " + e.getStatusCode());
-            }
+            pendingAuthId = null;
+            rejectAuth(id,
+                    "Google認証失敗: result=" + resultCode +
+                    " / data=null。Android OAuth登録またはGoogle Play開発者サービスを確認してください。");
             return;
         }
 
