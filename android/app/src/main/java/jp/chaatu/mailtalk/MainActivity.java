@@ -268,8 +268,17 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        if (webView == null) {
+            super.onBackPressed();
+            return;
+        }
+        webView.evaluateJavascript(
+                "(window.__mailTalkHandleAndroidBack ? window.__mailTalkHandleAndroidBack() : false)",
+                value -> {
+                    if (!"true".equals(value)) {
+                        moveTaskToBack(true);
+                    }
+                });
     }
 
     @Override
