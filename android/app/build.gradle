@@ -8,8 +8,8 @@ android {
         applicationId 'jp.chaatu.mailtalk'
         minSdk 26
         targetSdk 36
-        versionCode 6
-        versionName '0.46-native-beta2'
+        versionCode 7
+        versionName '0.46-native-beta3'
     }
     buildTypes {
         debug {
