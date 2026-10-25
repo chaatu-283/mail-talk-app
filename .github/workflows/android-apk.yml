@@ -56,16 +56,27 @@ jobs:
           LANG: C
           LC_ALL: C
         run: |
-          echo "===== MAIL TALK ANDROID CERTIFICATE ====="
+          echo "===== MAIL TALK KEYSTORE CERTIFICATE ====="
           keytool -list -v             -keystore "$HOME/.android/debug.keystore"             -alias androiddebugkey             -storepass android             -keypass android | grep -E "SHA1:|SHA256:" || true
-          echo "PACKAGE: jp.chaatu.mailtalk"
-          echo "========================================="
+          echo "==========================================="
+
+      - name: Verify built APK identity
+        shell: bash
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt2 | sort -V | tail -1)"
+          echo "===== BUILT APK CERTIFICATE ====="
+          "$APKSIGNER" verify --print-certs "$APK"
+          echo "===== BUILT APK PACKAGE ====="
+          "$AAPT" dump badging "$APK" | head -1
+          echo "================================="
       - name: Rename APK
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/MailTalk-v0.46-native-beta3-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/MailTalk-v0.46-native-beta4-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: MailTalk-debug-apk
-          path: dist/MailTalk-v0.46-native-beta3-debug.apk
+          path: dist/MailTalk-v0.46-native-beta4-debug.apk
           if-no-files-found: error
