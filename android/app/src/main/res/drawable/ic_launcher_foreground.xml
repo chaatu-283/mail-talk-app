@@ -1,20 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <!-- All foreground control points fit inside the central radius-33 safe zone. -->
-    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.52" android:scaleY="0.52">
-    <path android:fillColor="#FFF8FC"
-        android:pathData="M20,19 H88 C95,19 100,24 100,31 V71 C100,78 95,83 88,83 H59 L40,98 V83 H20 C13,83 8,78 8,71 V31 C8,24 13,19 20,19 Z"/>
-    <path android:fillColor="#FF8AB5"
-        android:pathData="M25,35 H83 C87,35 90,38 90,42 V67 C90,71 87,74 83,74 H25 C21,74 18,71 18,67 V42 C18,38 21,35 25,35 Z"/>
-    <path android:fillColor="@android:color/transparent"
-        android:pathData="M23,40 L54,59 L85,40"
-        android:strokeColor="#FFF8FC"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:strokeWidth="4"/>
-    <path android:fillColor="#8B7CF6"
-        android:pathData="M84,21 C79,15 70,18 70,25 C70,32 84,40 84,40 C84,40 98,32 98,25 C98,18 89,15 84,21 Z"/>
-    </group>
-</vector>
+<!-- Preserve the supplied PNG. Inset 16/108 per side keeps the envelope in the safe zone. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="14.814815%">
+    <bitmap android:src="@drawable/mail_talk_icon" android:gravity="fill" android:filter="true" />
+</inset>
