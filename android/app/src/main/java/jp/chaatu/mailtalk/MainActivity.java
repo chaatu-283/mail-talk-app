@@ -5,12 +5,18 @@ import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.IntentSender;
+import android.content.ClipData;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
+import android.util.Base64;
+import android.widget.Toast;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.widget.FrameLayout;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -29,16 +35,28 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.io.OutputStream;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "https://chaatu-283.github.io/mail-talk-app/";
     private static final int REQ_AUTH = 9401;
     private static final int REQ_FILE = 9402;
+    private static final int REQ_SAVE_ATTACHMENT = 9403;
+    private final ExecutorService attachmentWorker = Executors.newSingleThreadExecutor();
+    private File pendingSave;
 
     private WebView webView;
     private AuthorizationClient authorizationClient;
     private String pendingAuthId;
     private ValueCallback<Uri[]> fileCallback;
+    private OnBackInvokedCallback backCallback;
+    private boolean backPending;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,12 +71,19 @@ public class MainActivity extends Activity {
         webView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
-        setContentView(webView);
+        // Resize the WebView itself; padding on WebView does not reliably inset fixed HTML UI.
+        FrameLayout root = new FrameLayout(this);
+        root.addView(webView);
+        setContentView(root);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+        }
 
-        webView.setOnApplyWindowInsetsListener((view, insets) -> {
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 android.graphics.Insets bars =
-                        insets.getInsets(WindowInsets.Type.systemBars());
+                        insets.getInsets(WindowInsets.Type.systemBars()
+                                | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
                 view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             } else {
                 view.setPadding(
@@ -69,7 +94,12 @@ public class MainActivity extends Activity {
             }
             return insets;
         });
-        webView.requestApplyInsets();
+        root.requestApplyInsets();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback = this::handleAndroidBack;
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, backCallback);
+        }
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -86,7 +116,8 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
                 Uri u = request.getUrl();
-                if ("chaatu-283.github.io".equalsIgnoreCase(u.getHost())) return false;
+                if ("https".equals(u.getScheme()) && "chaatu-283.github.io".equalsIgnoreCase(u.getHost())
+                        && u.getPath() != null && u.getPath().startsWith("/mail-talk-app/")) return false;
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, u));
                 } catch (ActivityNotFoundException ignored) {}
@@ -95,6 +126,16 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
+                new android.app.AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton("OK", (dialog, which) -> result.confirm())
+                        .setNegativeButton("キャンセル", (dialog, which) -> result.cancel())
+                        .setOnCancelListener(dialog -> result.cancel()).show();
+                return true;
+            }
+
             @Override
             public boolean onShowFileChooser(
                     WebView webView,
@@ -127,6 +168,28 @@ public class MainActivity extends Activity {
 
     public final class NativeBridge {
         @JavascriptInterface
+        public void exportAttachment(String name, String mime, String base64, boolean saveOnly) {
+            if (base64 == null || base64.length() > 35 * 1024 * 1024) {
+                attachmentNotice("添付が大きすぎるため渡せません（最大25MB）。");
+                return;
+            }
+            attachmentWorker.execute(() -> {
+                try {
+                    String filename = name == null ? "attachment" : name.replace('/', '_').replace('\\', '_').replace('\0', '_');
+                    if (filename.isEmpty() || filename.equals(".") || filename.equals("..")) filename = "attachment";
+                    File dir = new File(getCacheDir(), "shared-attachments/" + UUID.randomUUID());
+                    if (!dir.mkdirs()) throw new java.io.IOException("Cannot create attachment directory");
+                    File file = new File(dir, filename);
+                    byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                    if (bytes.length > 25 * 1024 * 1024) throw new java.io.IOException("Attachment exceeds 25MB");
+                    try (FileOutputStream out = new FileOutputStream(file)) { out.write(bytes); }
+                    String type = mime == null || mime.isEmpty() ? "application/octet-stream" : mime;
+                    runOnUiThread(() -> openAttachmentFile(file, type, saveOnly));
+                } catch (Exception e) { attachmentNotice("添付を渡せませんでした: " + safeMessage(e)); }
+            });
+        }
+
+        @JavascriptInterface
         public void authorize(String scopeText, String requestId) {
             runOnUiThread(() -> startGoogleAuthorization(scopeText, requestId));
         }
@@ -135,6 +198,29 @@ public class MainActivity extends Activity {
         public boolean isNativeApp() {
             return true;
         }
+    }
+
+    private void attachmentNotice(String message) {
+        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
+    }
+
+    private void openAttachmentFile(File file, String mime, boolean saveOnly) {
+        if (isFinishing() || isDestroyed()) return;
+        if (!saveOnly) {
+            Uri uri = new Uri.Builder().scheme("content").authority(getPackageName() + ".attachments")
+                    .appendPath(file.getParentFile().getName()).appendPath(file.getName()).build();
+            Intent open = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            open.setClipData(ClipData.newRawUri(file.getName(), uri));
+            try { startActivity(open); return; }
+            catch (ActivityNotFoundException e) { attachmentNotice("対応アプリがありません。元の名前で保存できます。"); }
+        }
+        if (pendingSave != null) { attachmentNotice("先に保存画面を閉じてください。"); return; }
+        pendingSave = file;
+        Intent save = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(mime).putExtra(Intent.EXTRA_TITLE, file.getName());
+        try { startActivityForResult(save, REQ_SAVE_ATTACHMENT); }
+        catch (ActivityNotFoundException e) { pendingSave = null; attachmentNotice("保存アプリを開けません。"); }
     }
 
     private void startGoogleAuthorization(String scopeText, String requestId) {
@@ -232,6 +318,24 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_SAVE_ATTACHMENT) {
+            File file = pendingSave;
+            pendingSave = null;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && file != null) {
+                Uri destination = data.getData();
+                attachmentWorker.execute(() -> {
+                    try (FileInputStream input = new FileInputStream(file);
+                         OutputStream output = getContentResolver().openOutputStream(destination)) {
+                        if (output == null) throw new java.io.IOException("Cannot open destination");
+                        byte[] buffer = new byte[8192];
+                        int count;
+                        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                        attachmentNotice("保存しました: " + file.getName());
+                    } catch (Exception e) { attachmentNotice("保存できません: " + safeMessage(e)); }
+                });
+            }
+            return;
+        }
 
         if (requestCode == REQ_AUTH) {
             String id = pendingAuthId;
@@ -274,13 +378,20 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        handleAndroidBack();
+    }
+
+    private void handleAndroidBack() {
         if (webView == null) {
-            super.onBackPressed();
+            moveTaskToBack(true);
             return;
         }
+        if (backPending) return;
+        backPending = true;
         webView.evaluateJavascript(
                 "(window.__mailTalkHandleAndroidBack ? window.__mailTalkHandleAndroidBack() : false)",
                 value -> {
+                    backPending = false;
                     if (!"true".equals(value)) {
                         moveTaskToBack(true);
                     }
@@ -289,6 +400,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        attachmentWorker.shutdown();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && backCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
+        }
         if (webView != null) {
             webView.removeJavascriptInterface("MailTalkAndroid");
             webView.destroy();

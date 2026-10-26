@@ -216,7 +216,7 @@ html[data-theme="dark"] .list-back{background:#303640;color:#f3f5f7}
   min-height:118px;
   max-height:42vh;
   padding:12px 14px;
-  border:2px solid #aeb7c4;
+  border:0;
   border-radius:16px;
   line-height:1.55;
   background:var(--panel);
@@ -248,6 +248,8 @@ html[data-theme="dark"] .compose textarea{
 
 
 /* Android/native safe-area support */
+.composer{border-top:0;flex-shrink:0}
+.msgs{min-height:0}
 .nav{
   padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));
 }
@@ -439,7 +441,7 @@ html[data-theme="cute"] .replypick{
 
 html[data-theme="cute"] .composer{
   background:#fffafd;
-  border-top-color:#f0d6e3;
+  border-top:0;
   padding:10px 11px calc(10px + env(safe-area-inset-bottom,0px));
 }
 
