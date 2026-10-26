@@ -2,11 +2,25 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-apk.yml'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'app-20261025-v48.js'
+      - 'app.css'
+      - 'index.html'
   push:
     branches: [main]
     paths:
       - 'android/**'
       - '.github/workflows/android-apk.yml'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'app-20261025-v48.js'
+      - 'app.css'
+      - 'index.html'
 
 permissions:
   contents: read
@@ -17,6 +31,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Web regression tests
+        run: node --test tests/*.test.cjs
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -32,18 +48,16 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;35.0.0"
       - name: Keep stable debug signing key
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.android/debug.keystore
           key: mailtalk-debug-keystore-v1
+          fail-on-cache-miss: true
 
-      - name: Generate stable debug signing key
+      - name: Require registered signing key
         shell: bash
         run: |
-          mkdir -p "$HOME/.android"
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -v               -keystore "$HOME/.android/debug.keystore"               -storepass android               -alias androiddebugkey               -keypass android               -keyalg RSA               -keysize 2048               -validity 10000               -dname "CN=Android Debug,O=Android,C=US"
-          fi
+          test -f "$HOME/.android/debug.keystore" || { echo 'Registered keystore is missing; never generate a replacement.'; exit 1; }
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
@@ -62,15 +76,7 @@ jobs:
 
       - name: Verify built APK identity
         shell: bash
-        run: |
-          APK="android/app/build/outputs/apk/debug/app-debug.apk"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt2 | sort -V | tail -1)"
-          echo "===== BUILT APK CERTIFICATE ====="
-          "$APKSIGNER" verify --print-certs "$APK"
-          echo "===== BUILT APK PACKAGE ====="
-          "$AAPT" dump badging "$APK" | head -1
-          echo "================================="
+        run: bash scripts/verify-apk.sh android/app/build/outputs/apk/debug/app-debug.apk
       - name: Rename APK
         run: |
           mkdir -p dist

@@ -74,6 +74,7 @@ const composePreviewUrls=new Map();
 const MAX_SEND_FILES=5, MAX_SEND_BYTES=10*1024*1024;
 const CACHE_KEY='mt-mail-cache-v1', SYNC_COOLDOWN=65000;
 let lastSyncAt=Number(localStorage.getItem('mt-last-sync')||0);
+let syncInProgress=false, rateLimitedUntil=0, authPending=null;
 let settings={clientId:localStorage.getItem('mt-client')||'',days:Number(localStorage.getItem('mt-days')||30),max:Number(localStorage.getItem('mt-max')||80)};
 let drafts=JSON.parse(localStorage.getItem('mt-drafts')||'{}');
 let favorites=new Set(JSON.parse(localStorage.getItem('mt-favorites')||'[]'));
@@ -242,7 +243,7 @@ async function loadAttachmentPreview(button){
   }catch(_){button.dataset.previewLoaded='error'}
 }
 function setupAttachmentPreviews(){
-  const buttons=$('[data-att-preview]');
+  const buttons=$$('[data-att-preview]');
   if(!buttons.length||!token||Date.now()>=expires)return;
   if('IntersectionObserver'in window){
     const ob=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){ob.unobserve(e.target);loadAttachmentPreview(e.target)}}),{root:$('.msgs'),rootMargin:'120px'});
@@ -250,6 +251,7 @@ function setupAttachmentPreviews(){
   }else buttons.slice(0,4).forEach(loadAttachmentPreview);
 }
 function downloadAttachment(info){
+  if(window.MailTalkAndroid?.exportAttachment){exportNativeAttachment(info,true);return}
   const a=document.createElement('a');
   a.href=info.url;
   a.download=info.name||'attachment';
@@ -257,11 +259,22 @@ function downloadAttachment(info){
   a.click();
   a.remove();
 }
+async function exportNativeAttachment(info,saveOnly){
+  try{
+    if(info.blob.size>25*1024*1024)throw Error('端末へ渡せる添付は25MBまでです');
+    const data=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+      reader.onerror=()=>reject(Error('添付を読み込めません'));reader.readAsDataURL(info.blob);
+    });
+    window.MailTalkAndroid.exportAttachment(info.name||'attachment',info.type||'application/octet-stream',data,saveOnly);
+  }catch(e){say(e.message)}
+}
 function browserDisplayableAttachment(info){
   return /^image\//i.test(info?.type||'')||isPdfFile(info);
 }
 async function openExternalAttachment(info){
   if(!info)return;
+  if(window.MailTalkAndroid?.exportAttachment){await exportNativeAttachment(info,false);return}
   if(browserDisplayableAttachment(info)){
     window.open(info.url,'_blank','noopener');
     return;
@@ -543,12 +556,43 @@ function getToken(scopes){
   if(window.MailTalkAndroid&&typeof window.MailTalkAndroid.authorize==='function')return nativeGetToken(scopes);
   return new Promise((res,rej)=>{if(!gis())return rej(Error('OAuth設定が必要です'));const c=google.accounts.oauth2.initTokenClient({client_id:settings.clientId,scope:scopes,include_granted_scopes:true,callback:r=>{if(r.error)return rej(Error(r.error));token=r.access_token;expires=Date.now()+(Number(r.expires_in||3600)-60)*1000;localStorage.setItem('mt-oauth-granted','1');res()}});c.requestAccessToken({prompt:''})})
 }
-async function auth(scopes=READ){if(token&&Date.now()<expires)return;await getToken(scopes)}
-async function api(path,opt={}){await auth(opt.scope||READ);let r=await fetch(API+path,{method:opt.method||'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:opt.body});if(r.status===401){token='';await auth(opt.scope||READ);return api(path,opt)}if(!r.ok){let d=null;try{d=await r.json()}catch(_){ }const msg=d?.error?.message||d?.error_description||'詳細不明';const reason=d?.error?.errors?.[0]?.reason||'';throw Error('Gmail API '+r.status+': '+msg+(reason?' ['+reason+']':''));}return r.status===204?null:r.json()}
+async function auth(scopes=READ){
+  if(token&&Date.now()<expires)return;
+  if(!authPending)authPending=getToken(scopes).finally(()=>{authPending=null});
+  await authPending;
+}
+async function api(path,opt={}){
+  for(let attempt=0;attempt<2;attempt++){
+    if(Date.now()<rateLimitedUntil)throw Error('Gmail API rateLimitExceeded');
+    await auth(opt.scope||READ);
+    const usedToken=token;
+    const r=await fetch(API+path,{method:opt.method||'GET',headers:{Authorization:'Bearer '+usedToken,'Content-Type':'application/json'},body:opt.body});
+    if(r.status===401&&attempt===0){
+      if(token===usedToken)token='';
+      await auth(opt.scope||READ);
+      continue;
+    }
+    if(!r.ok){
+      let d=null;try{d=await r.json()}catch(_){}
+      const msg=d?.error?.message||d?.error_description||'詳細不明';
+      const reason=d?.error?.errors?.[0]?.reason||'';
+      if(r.status===429||/rateLimitExceeded|userRateLimitExceeded|Quota exceeded/i.test(reason+' '+msg)){
+        const retry=r.headers.get('Retry-After');
+        const delay=retry&&Number.isFinite(Number(retry))?Number(retry)*1000:Date.parse(retry||'')-Date.now();
+        rateLimitedUntil=Math.max(rateLimitedUntil,Date.now()+Math.max(SYNC_COOLDOWN,Number.isFinite(delay)?delay:0));
+        throw Error('Gmail API rateLimitExceeded: '+msg);
+      }
+      throw Error('Gmail API '+r.status+': '+msg+(reason?' ['+reason+']':''));
+    }
+    return r.status===204?null:r.json();
+  }
+}
 function peer(m){const from=addr(hdr(m,'From')),to=emails(hdr(m,'To')),cc=emails(hdr(m,'Cc'));const out=from.email===self;const e=out?(to.find(x=>x!==self)||cc.find(x=>x!==self)||to[0]||''):from.email;let name=out?addr((hdr(m,'To').split(',').find(x=>emails(x).includes(e))||e)).name:from.name;return {email:e,name:name||e,dir:out?'out':'in'}}
 function simple(m){const p=peer(m);return {id:m.id,threadId:m.threadId,labels:m.labelIds||[],at:Number(m.internalDate||Date.now()),from:hdr(m,'From'),to:hdr(m,'To'),cc:hdr(m,'Cc'),replyTo:hdr(m,'Reply-To'),subject:hdr(m,'Subject')||'（件名なし）',messageId:hdr(m,'Message-ID'),refs:hdr(m,'References'),inReplyTo:hdr(m,'In-Reply-To'),body:body(m.payload)||m.snippet||'',attachments:files(m.payload),peerEmail:p.email,peerName:p.name,dir:p.dir}}
 async function sync(force=false){
+  if(syncInProgress){say('同期中です。完了までお待ちください。');return}
   const now=Date.now();
+  if(now<rateLimitedUntil){say('Gmailの一時制限です。約'+Math.ceil((rateLimitedUntil-now)/1000)+'秒後に同期してください。');return}
   if(!force&&msgs.length&&now-lastSyncAt<SYNC_COOLDOWN){
     const sec=Math.max(1,Math.ceil((SYNC_COOLDOWN-(now-lastSyncAt))/1000));
     status.textContent=(self?self+' · ':'')+msgs.length+'通 · 次の同期まで約'+sec+'秒';
@@ -556,21 +600,24 @@ async function sync(force=false){
     render();
     return;
   }
+  syncInProgress=true;
   try{
     status.textContent='同期中…';
     const prof=await api('/profile');
     self=prof.emailAddress.toLowerCase();
     const q='newer_than:'+Math.max(1,settings.days)+'d';
-    const ids=[];
+    const ids=[], seenIds=new Set(), seenPages=new Set();
     let pageToken='';
     while(ids.length<settings.max){
       const pageSize=Math.min(500,settings.max-ids.length);
       const path='/messages?maxResults='+pageSize+'&q='+encodeURIComponent(q)+(pageToken?'&pageToken='+encodeURIComponent(pageToken):'');
       const l=await api(path);
-      ids.push(...(l.messages||[]).map(x=>x.id));
+      for(const x of l.messages||[]){if(x.id&&!seenIds.has(x.id)&&ids.length<settings.max){seenIds.add(x.id);ids.push(x.id)}}
       pageToken=l.nextPageToken||'';
       status.textContent='メール一覧を確認中 '+ids.length+'/'+settings.max;
       if(!pageToken||(l.messages||[]).length===0)break;
+      if(seenPages.has(pageToken))throw Error('Gmailのページ情報が重複しました。時間をおいて再同期してください。');
+      seenPages.add(pageToken);
     }
     const existing=new Map(msgs.map(x=>[x.id,x]));
     const kept=ids.filter(id=>existing.has(id)).map(id=>existing.get(id));
@@ -578,8 +625,11 @@ async function sync(force=false){
     const fresh=[];
     for(let i=0;i<missing.length;i+=10){
       const batch=missing.slice(i,i+10);
-      const got=await Promise.all(batch.map(id=>api('/messages/'+id+'?format=full')));
-      fresh.push(...got.map(simple));
+      // Wait for the entire batch even on failure, so a retry cannot overlap it.
+      const results=await Promise.allSettled(batch.map(id=>api('/messages/'+id+'?format=full')));
+      const failed=results.find(r=>r.status==='rejected');
+      if(failed)throw failed.reason;
+      fresh.push(...results.map(r=>simple(r.value)));
       status.textContent='新着を読み込み中 '+Math.min(i+10,missing.length)+'/'+missing.length;
     }
     msgs=[...kept,...fresh].sort((a,b)=>a.at-b.at);
@@ -600,7 +650,7 @@ async function sync(force=false){
       status.textContent='接続エラー';
       say(e.message);
     }
-  }
+  }finally{syncInProgress=false}
 }
 function groups(){
   const m=new Map();
@@ -691,8 +741,11 @@ function renderMailText(text,compactMode=false){
 function autoGrowReplyTextarea(ta){
   if(!ta)return;
   ta.style.height='auto';
-  const viewport=Math.max(220,Math.floor((window.visualViewport?.height||window.innerHeight||700)*0.46));
+  const viewport=Math.max(1,Math.floor((window.visualViewport?.height||window.innerHeight||700)*0.46));
+  ta.style.minHeight=Math.min(128,viewport)+'px';
+  ta.style.maxHeight=viewport+'px';
   ta.style.height=Math.min(ta.scrollHeight,viewport)+'px';
+  ta.style.overflowY=ta.scrollHeight>viewport?'auto':'hidden';
 }
 function showChat(email){
   active=email;tab='talks';app.classList.add('inmain');clearComposeFiles();
@@ -710,7 +763,6 @@ function showChat(email){
   if(ta){
     const fit=()=>autoGrowReplyTextarea(ta);
     ta.addEventListener('input',()=>{drafts[draftKey]=ta.value;localStorage.setItem('mt-drafts',JSON.stringify(drafts));fit()});
-    window.visualViewport?.addEventListener('resize',fit,{once:true});
     requestAnimationFrame(fit);
   }
   $('#newSubject')?.addEventListener('input',e=>localStorage.setItem('mt-subject:'+g.email,e.target.value));
@@ -867,6 +919,11 @@ function showNewCompose(){
         '<div class="actions"><button type="submit" class="primary compose-send-main">送信</button></div>'+
       '</section>'+
     '</form>';
+  const draft=JSON.parse(localStorage.getItem('mt-new-draft')||'{}');
+  for(const id of ['newTo','newSubjectDirect','newBodyDirect']){
+    const field=$('#'+id);field.value=draft[id]||'';
+    field.addEventListener('input',()=>{draft[id]=field.value;localStorage.setItem('mt-new-draft',JSON.stringify(draft))});
+  }
   $('#attachInput')?.addEventListener('change',e=>{setComposeFiles(e.target.files);e.target.value=''});
   $('#newComposeForm')?.addEventListener('submit',sendNewMessage);
   setTimeout(()=>$('#newTo')?.focus(),0);
@@ -894,6 +951,7 @@ async function sendNewMessage(e){
     await getToken(READ+' '+SEND);
     const mime=await buildMimeMessage({to:toAddr,subject,text,reply:null,files:usedFiles});
     const sent=await api('/messages/send',{method:'POST',scope:READ+' '+SEND,body:JSON.stringify({raw:enc(mime)})});
+    localStorage.removeItem('mt-new-draft');
     const full=await api('/messages/'+sent.id+'?format=full'),sm=simple(full);
     await cacheSentComposeAttachments(sm,usedFiles);
     const idx=msgs.findIndex(x=>x.id===sm.id);if(idx>=0)msgs[idx]=sm;else msgs.push(sm);
@@ -965,7 +1023,7 @@ $('#searchInput').addEventListener('input',e=>{
 $('#clearSearch').addEventListener('click',()=>{
   if(history.state?.mt==='search')history.back();
   else{$('#searchInput').value='';query='';renderList()}
-});$('#syncBtn').addEventListener('click',sync);
+});$('#syncBtn').addEventListener('click',()=>sync());
 window.__mailTalkHandleAndroidBack=()=>{
   if($('.attachment-viewer')){
     closeAttachmentViewer(false);
@@ -977,7 +1035,7 @@ window.__mailTalkHandleAndroidBack=()=>{
     active='';replyId='';tab='talks';
     app.classList.remove('inmain');
     renderFilters();renderList();showEmpty();
-    $('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab==='talks'));
+    $$('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab==='talks'));
     try{history.replaceState({mt:'root'},'',location.href)}catch(_){}
     return true;
   }
@@ -1004,6 +1062,7 @@ window.addEventListener('popstate',e=>{
   }
 });
 window.addEventListener('resize',()=>{if(attachmentView?.pdf){clearTimeout(attachmentView.pdf.resizeTimer);attachmentView.pdf.resizeTimer=setTimeout(renderPdfPage,120)}});
+window.visualViewport?.addEventListener('resize',()=>autoGrowReplyTextarea($('#replyText')));
 window.addEventListener('beforeunload',()=>{attachmentCache.forEach(x=>{try{URL.revokeObjectURL(x.url)}catch(_){}});composePreviewUrls.forEach(url=>{try{URL.revokeObjectURL(url)}catch(_){}})});
 applyAppearance();
 restoreCache();
