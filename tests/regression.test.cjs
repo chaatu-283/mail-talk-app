@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const source=fs.readFileSync('app-20261025-v48.js','utf8');
 function section(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);return source.slice(a,b)}
 function context(extra={}){
-  return vm.createContext({console,Date,Promise,Map,Set,Math,Number,Error,encodeURIComponent,
+  return vm.createContext({console,Date,Promise,Map,Set,Math,Number,Error,encodeURIComponent,setTimeout:fn=>setImmediate(fn),
     localStorage:{setItem(){},getItem(){return null}},say(){},render(){},saveCache(){},
     status:{textContent:''},msgs:[],self:'',lastSyncAt:0,SYNC_COOLDOWN:65000,BUILD:'test',
     settings:{days:730,max:1000},syncInProgress:false,rateLimitedUntil:0,simple:x=>x,...extra});
@@ -93,4 +93,26 @@ test('same correspondent groups incoming and outgoing subjects chronologically',
   ]});
   vm.runInContext(section('function groups()', 'function time('),c);
   const groups=c.groups();assert.equal(groups.length,1);assert.equal(groups[0].items[0].id,'a');
+});
+test('Japanese MIME subject, reply headers and original JWW filename survive encoding',async()=>{
+  const c=context({TextEncoder,btoa,wrap76:s=>s,fileBase64:async()=> 'YWJj'});
+  vm.runInContext(section('function mimeHeader(', 'const hdr='),c);
+  vm.runInContext(section('function cleanHeaderValue(', 'function getComposePreviewUrl('),c);
+  const mime=await c.buildMimeMessage({to:'a@b.com',subject:'図面確認',text:'',
+    reply:{messageId:'<reply@example.com>',refs:'<root@example.com>'},
+    files:[{name:'図面.jww',type:'application/octet-stream'}]});
+  assert(mime.includes('Subject: =?UTF-8?B?'+Buffer.from('図面確認').toString('base64')+'?='));
+  assert(mime.includes('In-Reply-To: <reply@example.com>'));
+  assert(mime.includes('References: <root@example.com> <reply@example.com>'));
+  assert(mime.includes("filename*=UTF-8''"+encodeURIComponent('図面.jww')));
+});
+test('new-compose text draft survives leaving and reopening the editor',()=>{
+  const saved=new Map();const fields={};
+  const c=context({tab:'talks',active:'',replyId:'',main:{innerHTML:''},app:{classList:{add(){}}},clearComposeFiles(){},
+    setTimeout(){},sendNewMessage(){},
+    localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v)},
+    $:id=>fields[id]||(fields[id]={value:'',listeners:{},addEventListener(event,fn){this.listeners[event]=fn}})});
+  vm.runInContext(section('function showNewCompose()', 'async function cacheSentComposeAttachments('),c);
+  c.showNewCompose();fields['#newBodyDirect'].value='下書き本文';fields['#newBodyDirect'].listeners.input();
+  fields['#newBodyDirect'].value='';c.showNewCompose();assert.equal(fields['#newBodyDirect'].value,'下書き本文');
 });

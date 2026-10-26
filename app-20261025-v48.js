@@ -631,6 +631,7 @@ async function sync(force=false){
       if(failed)throw failed.reason;
       fresh.push(...results.map(r=>simple(r.value)));
       status.textContent='新着を読み込み中 '+Math.min(i+10,missing.length)+'/'+missing.length;
+      if(i+10<missing.length)await new Promise(resolve=>setTimeout(resolve,250));
     }
     msgs=[...kept,...fresh].sort((a,b)=>a.at-b.at);
     lastSyncAt=Date.now();
@@ -987,11 +988,11 @@ if(b.hasAttribute('data-save-main')){settings.clientId=$('#clientId').value.trim
 if(b.hasAttribute('data-cat-add')){categories.splice(Math.max(0,categories.length-1),0,{id:'custom_'+Date.now(),name:'新しい分類',keywords:''});showSettings();return}
 if(b.dataset.catDelete){categories=categories.filter(c=>c.id!==b.dataset.catDelete);for(const [k,v] of Object.entries(categoryOverrides))if(v===b.dataset.catDelete)delete categoryOverrides[k];saveCategoryOverrides();showSettings();return}
 if(b.hasAttribute('data-cat-reset')){categories=DEFAULT_CATEGORIES.map(x=>({...x}));categoryOverrides={};saveCategories();saveCategoryOverrides();filter='all';showSettings();say('分類を初期状態に戻しました');return}
-if(b.hasAttribute('data-cat-save')){$('.cat-row').forEach(row=>{const c=categoryById(row.dataset.catId);if(c){c.name=row.querySelector('.cat-name')?.value.trim()||c.name;c.keywords=row.querySelector('.cat-keywords')?.value.trim()||''}});saveCategories();renderFilters();renderList();say('分類を保存しました');return}
+if(b.hasAttribute('data-cat-save')){$$('.cat-row').forEach(row=>{const c=categoryById(row.dataset.catId);if(c){c.name=row.querySelector('.cat-name')?.value.trim()||c.name;c.keywords=row.querySelector('.cat-keywords')?.value.trim()||''}});saveCategories();renderFilters();renderList();say('分類を保存しました');return}
 if(b.hasAttribute('data-appearance-save')){appearance={theme:$('#themeSel').value,font:$('#fontSel').value,size:$('#sizeSel').value,accent:$('#accentSel').value};saveAppearance();say('見た目を保存しました');return}
 if(b.hasAttribute('data-settings-back')){
   if(history.state?.mt==='settings')history.back();
-  else{tab='talks';active='';replyId='';app.classList.remove('inmain');renderFilters();renderList();$('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab==='talks'))}
+  else{tab='talks';active='';replyId='';app.classList.remove('inmain');renderFilters();renderList();$$('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab==='talks'))}
   return;
 }if(b.hasAttribute('data-attach-pick')){$('#attachInput')?.click();return}if(b.dataset.composePreview!==undefined){previewComposeFile(Number(b.dataset.composePreview));return}if(b.dataset.fileRemove!==undefined){const i=Number(b.dataset.fileRemove);if(Number.isInteger(i)&&composeFiles[i]){const removed=composeFiles.splice(i,1)[0];revokeComposePreview(removed);renderComposeFiles()}return}if(b.hasAttribute('data-att-close')){closeAttachmentViewer();return}if(b.hasAttribute('data-att-download')){if(attachmentView)downloadAttachment(attachmentView);return}if(b.hasAttribute('data-att-external')){if(attachmentView)openExternalAttachment(attachmentView);return}if(b.hasAttribute('data-pdf-prev')){const st=attachmentView?.pdf;if(st&&st.page>1){st.page--;st.zoom=1;renderPdfPage().then(()=>{const s=$('.pdf-canvas-stage');if(s){s.scrollLeft=0;s.scrollTop=0}})}return}
 if(b.hasAttribute('data-pdf-next')){const st=attachmentView?.pdf;if(st&&st.page<st.doc.numPages){st.page++;st.zoom=1;renderPdfPage().then(()=>{const s=$('.pdf-canvas-stage');if(s){s.scrollLeft=0;s.scrollTop=0}})}return}
