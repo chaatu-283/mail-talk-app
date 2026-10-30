@@ -54,6 +54,8 @@ public class MainActivity extends Activity {
     private WebView webView;
     private AuthorizationClient authorizationClient;
     private String pendingAuthId;
+    private boolean pendingAuthInteractive = true;
+    private volatile boolean foreground;
     private ValueCallback<Uri[]> fileCallback;
     private OnBackInvokedCallback backCallback;
     private boolean backPending;
@@ -191,7 +193,17 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void authorize(String scopeText, String requestId) {
-            runOnUiThread(() -> startGoogleAuthorization(scopeText, requestId));
+            runOnUiThread(() -> startGoogleAuthorization(scopeText, requestId, true));
+        }
+
+        @JavascriptInterface
+        public void authorizeSilently(String scopeText, String requestId) {
+            runOnUiThread(() -> startGoogleAuthorization(scopeText, requestId, false));
+        }
+
+        @JavascriptInterface
+        public boolean isForeground() {
+            return foreground;
         }
 
         @JavascriptInterface
@@ -223,12 +235,17 @@ public class MainActivity extends Activity {
         catch (ActivityNotFoundException e) { pendingSave = null; attachmentNotice("保存アプリを開けません。"); }
     }
 
-    private void startGoogleAuthorization(String scopeText, String requestId) {
+    private void startGoogleAuthorization(String scopeText, String requestId, boolean interactive) {
+        if (!interactive && !foreground) {
+            rejectAuth(requestId, "自動同期を一時停止しました");
+            return;
+        }
         if (pendingAuthId != null) {
             rejectAuth(requestId, "Google認証を処理中です");
             return;
         }
         pendingAuthId = requestId;
+        pendingAuthInteractive = interactive;
 
         List<Scope> scopes = new ArrayList<>();
         if (scopeText != null) {
@@ -257,6 +274,12 @@ public class MainActivity extends Activity {
 
     private void handleAuthorizationResult(AuthorizationResult result) {
         if (result.hasResolution()) {
+            if (!pendingAuthInteractive) {
+                String id = pendingAuthId;
+                pendingAuthId = null;
+                rejectAuth(id, "同期ボタンからGmailに再接続してください");
+                return;
+            }
             PendingIntent p = result.getPendingIntent();
             if (p == null) {
                 String id = pendingAuthId;
@@ -368,6 +391,22 @@ public class MainActivity extends Activity {
                 fileCallback = null;
             }
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        foreground = true;
+        if (webView != null) webView.evaluateJavascript(
+                "window.__mailTalkOnResume && window.__mailTalkOnResume()", null);
+    }
+
+    @Override
+    protected void onPause() {
+        foreground = false;
+        if (webView != null) webView.evaluateJavascript(
+                "window.__mailTalkOnPause && window.__mailTalkOnPause()", null);
+        super.onPause();
     }
 
     @Override

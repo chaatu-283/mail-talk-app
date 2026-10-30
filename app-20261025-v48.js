@@ -1,5 +1,5 @@
 
-const BUILD='v0.47-20261025';
+const BUILD='v0.47-native-beta9';
 const API='https://gmail.googleapis.com/gmail/v1/users/me';
 const READ='https://www.googleapis.com/auth/gmail.readonly';
 const SEND='https://www.googleapis.com/auth/gmail.send';
@@ -542,34 +542,40 @@ window.__mailTalkNativeAuthReject=(id,message)=>{
   nativeAuthPending.delete(String(id));
   p.rej(Error(message||'Android側のGoogle認証に失敗しました'));
 };
-function nativeGetToken(scopes){
+function nativeGetToken(scopes,interactive=true){
   return new Promise((res,rej)=>{
     const bridge=window.MailTalkAndroid;
     if(!bridge||typeof bridge.authorize!=='function')return rej(Error('Android認証ブリッジが利用できません'));
     const id=String(++nativeAuthSeq);
     nativeAuthPending.set(id,{res,rej});
-    try{bridge.authorize(String(scopes||READ),id)}
+    try{
+      if(interactive)bridge.authorize(String(scopes||READ),id);
+      else if(typeof bridge.authorizeSilently==='function')bridge.authorizeSilently(String(scopes||READ),id);
+      else throw Error('同期ボタンからGmailに接続してください');
+    }
     catch(e){nativeAuthPending.delete(id);rej(e)}
   });
 }
-function getToken(scopes){
-  if(window.MailTalkAndroid&&typeof window.MailTalkAndroid.authorize==='function')return nativeGetToken(scopes);
+function getToken(scopes,interactive=true){
+  if(window.MailTalkAndroid&&typeof window.MailTalkAndroid.authorize==='function')return nativeGetToken(scopes,interactive);
+  if(!interactive)return Promise.reject(Error('同期ボタンからGmailに再接続してください'));
   return new Promise((res,rej)=>{if(!gis())return rej(Error('OAuth設定が必要です'));const c=google.accounts.oauth2.initTokenClient({client_id:settings.clientId,scope:scopes,include_granted_scopes:true,callback:r=>{if(r.error)return rej(Error(r.error));token=r.access_token;expires=Date.now()+(Number(r.expires_in||3600)-60)*1000;localStorage.setItem('mt-oauth-granted','1');res()}});c.requestAccessToken({prompt:''})})
 }
-async function auth(scopes=READ){
+async function auth(scopes=READ,interactive=true){
   if(token&&Date.now()<expires)return;
-  if(!authPending)authPending=getToken(scopes).finally(()=>{authPending=null});
+  if(!authPending)authPending=getToken(scopes,interactive).finally(()=>{authPending=null});
   await authPending;
 }
 async function api(path,opt={}){
   for(let attempt=0;attempt<2;attempt++){
     if(Date.now()<rateLimitedUntil)throw Error('Gmail API rateLimitExceeded');
-    await auth(opt.scope||READ);
+    await auth(opt.scope||READ,opt.interactive!==false);
+    if(opt.foregroundOnly&&!isAutoSyncVisible())throw Error('AUTO_SYNC_PAUSED');
     const usedToken=token;
     const r=await fetch(API+path,{method:opt.method||'GET',headers:{Authorization:'Bearer '+usedToken,'Content-Type':'application/json'},body:opt.body});
     if(r.status===401&&attempt===0){
       if(token===usedToken)token='';
-      await auth(opt.scope||READ);
+      await auth(opt.scope||READ,opt.interactive!==false);
       continue;
     }
     if(!r.ok){
@@ -589,21 +595,29 @@ async function api(path,opt={}){
 }
 function peer(m){const from=addr(hdr(m,'From')),to=emails(hdr(m,'To')),cc=emails(hdr(m,'Cc'));const out=from.email===self;const e=out?(to.find(x=>x!==self)||cc.find(x=>x!==self)||to[0]||''):from.email;let name=out?addr((hdr(m,'To').split(',').find(x=>emails(x).includes(e))||e)).name:from.name;return {email:e,name:name||e,dir:out?'out':'in'}}
 function simple(m){const p=peer(m);return {id:m.id,threadId:m.threadId,labels:m.labelIds||[],at:Number(m.internalDate||Date.now()),from:hdr(m,'From'),to:hdr(m,'To'),cc:hdr(m,'Cc'),replyTo:hdr(m,'Reply-To'),subject:hdr(m,'Subject')||'（件名なし）',messageId:hdr(m,'Message-ID'),refs:hdr(m,'References'),inReplyTo:hdr(m,'In-Reply-To'),body:body(m.payload)||m.snippet||'',attachments:files(m.payload),peerEmail:p.email,peerName:p.name,dir:p.dir}}
-async function sync(force=false){
-  if(syncInProgress){say('同期中です。完了までお待ちください。');return}
+async function sync(force=false,{automatic=false}={}){
+  const notice=message=>{if(!automatic)say(message)};
+  if(automatic&&(!isAutoSyncVisible()||!canAutoSync()))return;
+  if(syncInProgress){notice('同期中です。完了までお待ちください。');return}
   const now=Date.now();
-  if(now<rateLimitedUntil){say('Gmailの一時制限です。約'+Math.ceil((rateLimitedUntil-now)/1000)+'秒後に同期してください。');return}
-  if(!force&&msgs.length&&now-lastSyncAt<SYNC_COOLDOWN){
+  if(now<rateLimitedUntil){notice('Gmailの一時制限です。約'+Math.ceil((rateLimitedUntil-now)/1000)+'秒後に同期してください。');return}
+  // Even explicit/manual sync cannot bypass Gmail's minimum request interval.
+  if(now-lastSyncAt<SYNC_COOLDOWN){
     const sec=Math.max(1,Math.ceil((SYNC_COOLDOWN-(now-lastSyncAt))/1000));
     status.textContent=(self?self+' · ':'')+msgs.length+'通 · 次の同期まで約'+sec+'秒';
-    say('Gmailの制限を避けるため、約'+sec+'秒後に同期できます。');
-    render();
+    notice('Gmailの制限を避けるため、約'+sec+'秒後に同期できます。');
     return;
   }
   syncInProgress=true;
+  lastSyncAt=now;
+  localStorage.setItem('mt-last-sync',String(lastSyncAt));
+  const syncApi=path=>{
+    if(automatic&&!isAutoSyncVisible())throw Error('AUTO_SYNC_PAUSED');
+    return api(path,{interactive:!automatic,foregroundOnly:automatic});
+  };
   try{
     status.textContent='同期中…';
-    const prof=await api('/profile');
+    const prof=await syncApi('/profile');
     self=prof.emailAddress.toLowerCase();
     const q='newer_than:'+Math.max(1,settings.days)+'d';
     const ids=[], seenIds=new Set(), seenPages=new Set();
@@ -611,7 +625,7 @@ async function sync(force=false){
     while(ids.length<settings.max){
       const pageSize=Math.min(500,settings.max-ids.length);
       const path='/messages?maxResults='+pageSize+'&q='+encodeURIComponent(q)+(pageToken?'&pageToken='+encodeURIComponent(pageToken):'');
-      const l=await api(path);
+      const l=await syncApi(path);
       for(const x of l.messages||[]){if(x.id&&!seenIds.has(x.id)&&ids.length<settings.max){seenIds.add(x.id);ids.push(x.id)}}
       pageToken=l.nextPageToken||'';
       status.textContent='メール一覧を確認中 '+ids.length+'/'+settings.max;
@@ -626,7 +640,7 @@ async function sync(force=false){
     for(let i=0;i<missing.length;i+=10){
       const batch=missing.slice(i,i+10);
       // Wait for the entire batch even on failure, so a retry cannot overlap it.
-      const results=await Promise.allSettled(batch.map(id=>api('/messages/'+id+'?format=full')));
+      const results=await Promise.allSettled(batch.map(id=>Promise.resolve().then(()=>syncApi('/messages/'+id+'?format=full'))));
       const failed=results.find(r=>r.status==='rejected');
       if(failed)throw failed.reason;
       fresh.push(...results.map(r=>simple(r.value)));
@@ -638,21 +652,74 @@ async function sync(force=false){
     localStorage.setItem('mt-last-sync',String(lastSyncAt));
     saveCache();
     status.textContent=self+' · '+msgs.length+'通 · '+BUILD;
-    render();
-    say(missing.length?'新着 '+missing.length+'通を同期しました':'新着はありません');
+    if(automatic){
+      refreshSyncedList();
+      if(missing.length)status.textContent+=' · 新着 '+missing.length+'通';
+    }else render();
+    notice(missing.length?'新着 '+missing.length+'通を同期しました':'新着はありません');
   }catch(e){
+    if(e.message==='AUTO_SYNC_PAUSED'){
+      status.textContent=(self?self+' · ':'')+'自動同期を一時停止';
+      return;
+    }
     if(/rateLimitExceeded|Quota exceeded/i.test(e.message)){
       lastSyncAt=Date.now();
       localStorage.setItem('mt-last-sync',String(lastSyncAt));
       status.textContent=(self?self+' · ':'')+(msgs.length?msgs.length+'通 · ':'')+'Gmail一時制限中';
-      if(msgs.length)render();
-      say('Gmailの一時制限です。約1分待ってから同期してください。');
+      notice('Gmailの一時制限です。約1分待ってから同期してください。');
     }else{
-      status.textContent='接続エラー';
-      say(e.message);
+      status.textContent=automatic?'自動同期できませんでした · 次回再試行（必要なら同期ボタンで再接続）':'接続エラー';
+      notice(e.message);
     }
   }finally{syncInProgress=false}
 }
+// Update only the list: never replace an open reply, compose form, settings or viewer.
+function refreshSyncedList(){
+  const top=list.scrollTop;
+  const rows=[...list.querySelectorAll('[data-open]')];
+  const edge=list.getBoundingClientRect().top;
+  const anchor=rows.find(row=>row.getBoundingClientRect().bottom>edge);
+  const key=anchor?.dataset.open, offset=anchor?anchor.getBoundingClientRect().top-edge:0;
+  renderFilters();renderList();
+  list.scrollTop=top;
+  const next=[...list.querySelectorAll('[data-open]')].find(row=>row.dataset.open===key);
+  if(top>0&&next)list.scrollTop+=next.getBoundingClientRect().top-list.getBoundingClientRect().top-offset;
+}
+const AUTO_SYNC_MS=5*60*1000;
+let autoSyncTimer=null, autoSyncStartup=null, nativeForeground=true;
+function isAutoSyncVisible(){
+  return nativeForeground&&document.visibilityState==='visible';
+}
+function canAutoSync(){
+  if(navigator.onLine===false)return false;
+  if(window.MailTalkAndroid)return typeof window.MailTalkAndroid.authorizeSilently==='function'&&localStorage.getItem('mt-oauth-granted')==='1';
+  // Browser OAuth requires a user gesture after reload/expiry; never open a popup on a timer.
+  return !!settings.clientId&&!!token&&Date.now()<expires;
+}
+function stopAutoSync(){
+  if(autoSyncTimer!==null)clearInterval(autoSyncTimer);
+  if(autoSyncStartup!==null)clearTimeout(autoSyncStartup);
+  autoSyncTimer=autoSyncStartup=null;
+}
+function startAutoSync(){
+  stopAutoSync();
+  if(!isAutoSyncVisible())return;
+  autoSyncTimer=setInterval(()=>sync(false,{automatic:true}),AUTO_SYNC_MS);
+}
+function resumeAutoSync(){
+  startAutoSync();
+  if(isAutoSyncVisible())autoSyncStartup=setTimeout(()=>{
+    autoSyncStartup=null;
+    sync(false,{automatic:true});
+  },800);
+}
+window.__mailTalkOnResume=()=>{nativeForeground=true;resumeAutoSync()};
+window.__mailTalkOnPause=()=>{nativeForeground=false;stopAutoSync()};
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible')resumeAutoSync();else stopAutoSync();
+});
+window.addEventListener('pagehide',stopAutoSync);
+window.addEventListener('pageshow',resumeAutoSync);
 function groups(){
   const m=new Map();
   for(const x of msgs){
@@ -1068,3 +1135,5 @@ window.addEventListener('beforeunload',()=>{attachmentCache.forEach(x=>{try{URL.
 applyAppearance();
 restoreCache();
 render();
+if(typeof window.MailTalkAndroid?.isForeground==='function')nativeForeground=window.MailTalkAndroid.isForeground();
+resumeAutoSync();

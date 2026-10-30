@@ -10,7 +10,80 @@ function context(extra={}){
     status:{textContent:''},msgs:[],self:'',lastSyncAt:0,SYNC_COOLDOWN:65000,BUILD:'test',
     settings:{days:730,max:1000},syncInProgress:false,rateLimitedUntil:0,simple:x=>x,...extra});
 }
-const syncCode=section('async function sync(', 'function groups()');
+const syncCode=section('async function sync(', '// Update only the list:');
+test('automatic sync is quiet, retains editor, and shares the manual/empty-mailbox cooldown',async()=>{
+  let calls=0,refreshes=0,toasts=0;
+  const c=context({isAutoSyncVisible:()=>true,canAutoSync:()=>true,
+    refreshSyncedList:()=>refreshes++,say:()=>toasts++,render:()=>{throw Error('editor replaced')},
+    api:async(path,opt)=>{calls++;assert.equal(opt.interactive,false);return path==='/profile'?{emailAddress:'a@b.com'}:{messages:[]}}
+  });
+  vm.runInContext(syncCode,c);
+  await Promise.all([c.sync(false,{automatic:true}),c.sync(false,{automatic:true})]);
+  assert.equal(calls,2);assert.equal(refreshes,1);assert.equal(toasts,0);
+  await c.sync(true);assert.equal(calls,2);
+  c.lastSyncAt=0;c.api=async()=>{calls++;throw Error('offline')};
+  toasts=0;await c.sync(false,{automatic:true});await c.sync(false,{automatic:true});
+  assert.equal(calls,3);assert.equal(toasts,0);assert.equal(c.syncInProgress,false);
+  c.lastSyncAt=0;c.api=async path=>path==='/profile'?{emailAddress:'a@b.com'}:{messages:[]};
+  await c.sync(false,{automatic:true});assert.equal(refreshes,2);
+});
+test('automatic new mail updates list and status without a toast or editor replacement',async()=>{
+  let refreshed=0;
+  const c=context({isAutoSyncVisible:()=>true,canAutoSync:()=>true,
+    refreshSyncedList:()=>refreshed++,say:()=>assert.fail('automatic toast'),render:()=>assert.fail('editor replaced'),
+    api:async path=>path==='/profile'?{emailAddress:'a@b.com'}:path.startsWith('/messages?')?{messages:[{id:'new'}]}:{id:'new',at:2}
+  });
+  vm.runInContext(syncCode,c);await c.sync(false,{automatic:true});
+  assert.equal(refreshed,1);assert.equal(c.msgs[0].id,'new');assert.match(c.status.textContent,/新着 1通/);
+});
+test('leaving foreground stops the next detail batch and preserves cache',async()=>{
+  let visible=true,calls=0;
+  const c=context({isAutoSyncVisible:()=>visible,canAutoSync:()=>true,msgs:[{id:'old'}],
+    api:async path=>{
+      calls++;
+      if(path==='/profile')return {emailAddress:'a@b.com'};
+      visible=false;return {messages:[{id:'new'}]};
+    }
+  });
+  vm.runInContext(syncCode,c);await c.sync(false,{automatic:true});
+  assert.equal(calls,2);assert.equal(c.msgs[0].id,'old');assert.equal(c.syncInProgress,false);
+});
+test('startup/resume debounce; one 5-minute timer; native pause and hidden visibility stop it',()=>{
+  const intervals=new Map(),timeouts=new Map(),listeners={};let id=0,calls=0;
+  const c=context({window:{addEventListener:(event,fn)=>listeners[event]=fn},
+    document:{visibilityState:'visible',addEventListener:(event,fn)=>listeners[event]=fn},navigator:{onLine:true},
+    setInterval:(fn,ms)=>{assert.equal(ms,300000);intervals.set(++id,fn);return id},clearInterval:id=>intervals.delete(id),
+    setTimeout:(fn,ms)=>{assert.equal(ms,800);timeouts.set(++id,fn);return id},clearTimeout:id=>timeouts.delete(id),
+    sync:(force,opt)=>{assert.equal(force,false);assert.equal(opt.automatic,true);calls++}
+  });
+  vm.runInContext(section('const AUTO_SYNC_MS=', 'function groups()'),c);
+  c.resumeAutoSync();c.window.__mailTalkOnResume();listeners.visibilitychange();
+  assert.equal(intervals.size,1);assert.equal(timeouts.size,1);
+  [...timeouts.values()][0]();assert.equal(calls,1);timeouts.clear();
+  [...intervals.values()][0]();assert.equal(calls,2);
+  c.window.__mailTalkOnPause();assert.equal(intervals.size,0);assert.equal(timeouts.size,0);
+  listeners.visibilitychange();assert.equal(intervals.size,0);
+  c.window.__mailTalkOnResume();assert.equal(intervals.size,1);
+  c.document.visibilityState='hidden';listeners.visibilitychange();assert.equal(intervals.size,0);assert.equal(timeouts.size,0);
+});
+test('automatic authentication eligibility excludes unconfigured, offline and expired browser sessions',()=>{
+  const c=context({window:{addEventListener(){}},document:{visibilityState:'visible',addEventListener(){}},navigator:{onLine:true},token:'',expires:0});
+  vm.runInContext(section('const AUTO_SYNC_MS=', 'function groups()'),c);
+  assert.equal(c.canAutoSync(),false);
+  c.window.MailTalkAndroid={authorizeSilently(){}};assert.equal(c.canAutoSync(),false);
+  c.localStorage.getItem=()=> '1';assert.equal(c.canAutoSync(),true);
+  c.navigator.onLine=false;assert.equal(c.canAutoSync(),false);
+  c.navigator.onLine=true;delete c.window.MailTalkAndroid;
+  c.settings.clientId='web';c.token='token';c.expires=Date.now()+10000;assert.equal(c.canAutoSync(),true);
+  c.expires=0;assert.equal(c.canAutoSync(),false);
+});
+test('automatic native authorization uses silent bridge and browser never opens OAuth automatically',async()=>{
+  let silent=0,interactive=0;
+  const c=context({READ:'read',window:{MailTalkAndroid:{authorize(){interactive++},authorizeSilently(scope,id){silent++;c.window.__mailTalkNativeAuthResolve(id,'token',Date.now()+10000)}}}});
+  vm.runInContext(section('let nativeAuthSeq=', 'async function auth('),c);
+  await c.getToken('read',false);assert.equal(silent,1);assert.equal(interactive,0);
+  delete c.window.MailTalkAndroid;await assert.rejects(c.getToken('read',false),/再接続/);
+});
 test('1000 messages paginate in 500s; detail concurrency <=10; second sync reuses cache',async()=>{
   let concurrent=0,peak=0,detailCount=0;const lists=[];
   const c=context({api:async path=>{
@@ -27,6 +100,7 @@ test('1000 messages paginate in 500s; detail concurrency <=10; second sync reuse
   await Promise.all([c.sync(),c.sync()]);
   assert.equal(c.msgs.length,1000);assert.equal(detailCount,1000);assert.equal(peak,10);
   assert.equal(lists.length,2);assert(lists[0].includes('newer_than%3A730d'));assert(lists[1].includes('pageToken=second%20page'));
+  c.lastSyncAt=0;
   await c.sync(true);assert.equal(detailCount,1000);assert.equal(lists.length,4);
 });
 test('batch failure waits for outstanding requests and preserves cached mail',async()=>{
